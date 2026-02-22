@@ -25,7 +25,7 @@ struct LanguageSelectionView: View {
             .padding(.top, 4)
 
             List {
-                ForEach(AppLanguage.allCases) { lang in
+                ForEach(AppLanguage.visibleToUser) { lang in
                     Button {
                         languageStore.selectedLanguage = lang
                         languageStore.markLanguageSelectionCompleted()

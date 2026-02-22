@@ -38,7 +38,7 @@ struct ItemCardView: View {
                     PatientResponseCaptureView(
                         responseService: patientResponse,
                         spanishSpeech: spanishSpeech,
-                        phrases: step.spanishPhrasesToSpeak
+                        phrases: step.patientPhrasesToSpeak(language: languageStore.selectedLanguage)
                     )
                 }
 
@@ -51,18 +51,18 @@ struct ItemCardView: View {
                     Text(step.item.providerPromptEnglish)
                         .font(.subheadline)
                         .foregroundStyle(.primary)
-                    if !step.spanishPhrasesToSpeak.isEmpty {
+                    if !step.patientPhrasesToSpeak(language: languageStore.selectedLanguage).isEmpty {
                         Text("In \(languageStore.selectedLanguage.displayName) (tap to play)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(Array(step.spanishPhrasesToSpeak.enumerated()), id: \.offset) { index, phrase in
+                    ForEach(Array(step.patientPhrasesToSpeak(language: languageStore.selectedLanguage).enumerated()), id: \.offset) { index, phrase in
                         let hasImage = step.item.id == "9",
                             imageNames = step.item.spanishPhraseImageNames,
                             imageName = (imageNames != nil && index < imageNames!.count && !imageNames![index].isEmpty) ? imageNames![index] : nil
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .top, spacing: 6) {
-                                if step.spanishPhrasesToSpeak.count > 1 {
+                                if step.patientPhrasesToSpeak(language: languageStore.selectedLanguage).count > 1 {
                                     Text("\(index + 1).")
                                         .font(.subheadline.bold().monospacedDigit())
                                         .foregroundStyle(.orange)
@@ -131,9 +131,107 @@ struct ItemCardView: View {
                                         if isRecordingThis {
                                             patientResponse.stopRecording()
                                         } else {
+                                                    patientResponse.requestAuthorization { granted in
+                                                        if granted {
+                                                            patientResponse.startRecording(key: key, language: languageStore.selectedLanguage)
+                                                        }
+                                                    }
+                                        }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: isRecordingThis ? "stop.circle.fill" : "mic.circle.fill")
+                                                .font(.title3)
+                                            Text(isRecordingThis ? "Stop recording" : "Record patient response")
+                                                .font(.caption.bold())
+                                        }
+                                        .padding(6)
+                                        .frame(maxWidth: .infinity)
+                                        .background(isRecordingThis ? Color.red.opacity(0.2) : Color.blue.opacity(0.12))
+                                        .foregroundStyle(.blue)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(patientResponse.authorizationStatus == .denied || (patientResponse.isRecording && !isRecordingThis))
+                                    if !response.transcribed.isEmpty || !response.translated.isEmpty {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            if !response.transcribed.isEmpty {
+                                                Text("Patient said: \(response.transcribed)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            if !response.translated.isEmpty {
+                                                Text("Translation (English): \(response.translated)")
+                                                    .font(.caption.bold())
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(6)
+                                        .background(Color.gray.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                }
+                            }
+                            // Item 8 (Sensory): speech-to-text capture (one button after last phrase)
+                            if step.item.id == "8", index == 2 {
+                                let response = patientResponse.responseForItem8()
+                                let isRecordingThis = patientResponse.isRecordingItem8()
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Button {
+                                        if isRecordingThis {
+                                            patientResponse.stopRecording()
+                                        } else {
                                             patientResponse.requestAuthorization { granted in
                                                 if granted {
-                                                    patientResponse.startRecording(key: key)
+                                                    patientResponse.startRecording(key: "8", language: languageStore.selectedLanguage)
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: isRecordingThis ? "stop.circle.fill" : "mic.circle.fill")
+                                                .font(.title3)
+                                            Text(isRecordingThis ? "Stop recording" : "Record patient response")
+                                                .font(.caption.bold())
+                                        }
+                                        .padding(6)
+                                        .frame(maxWidth: .infinity)
+                                        .background(isRecordingThis ? Color.red.opacity(0.2) : Color.blue.opacity(0.12))
+                                        .foregroundStyle(.blue)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(patientResponse.authorizationStatus == .denied || (patientResponse.isRecording && !isRecordingThis))
+                                    if !response.transcribed.isEmpty || !response.translated.isEmpty {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            if !response.transcribed.isEmpty {
+                                                Text("Patient said: \(response.transcribed)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            if !response.translated.isEmpty {
+                                                Text("Translation (English): \(response.translated)")
+                                                    .font(.caption.bold())
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(6)
+                                        .background(Color.gray.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                }
+                            }
+                            // Item 11 (Extinction/Inattention): speech-to-text capture (after both sensory + visual prompts)
+                            if step.item.id == "11", index == 1 {
+                                let response = patientResponse.responseForItem11()
+                                let isRecordingThis = patientResponse.isRecordingItem11()
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Button {
+                                        if isRecordingThis {
+                                            patientResponse.stopRecording()
+                                        } else {
+                                            patientResponse.requestAuthorization { granted in
+                                                if granted {
+                                                    patientResponse.startRecording(key: "11", language: languageStore.selectedLanguage)
                                                 }
                                             }
                                         }
@@ -204,12 +302,13 @@ struct ItemCardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .fullScreenCover(item: $item9Expanded) { expanded in
             let idx = expanded.index
-            if idx < step.spanishPhrasesToSpeak.count,
+            let patientPhrases = step.patientPhrasesToSpeak(language: languageStore.selectedLanguage)
+            if idx < patientPhrases.count,
                let imageNames = step.item.spanishPhraseImageNames,
                idx < imageNames.count,
                !imageNames[idx].isEmpty {
                 Item9FullScreenView(
-                    phrase: step.spanishPhrasesToSpeak[idx],
+                    phrase: patientPhrases[idx],
                     imageName: imageNames[idx],
                     subsectionIndex: idx,
                     onDismiss: { item9Expanded = nil }
@@ -296,11 +395,11 @@ private struct Item9FullScreenView: View {
                             if isRecordingThis {
                                 patientResponse.stopRecording()
                             } else {
-                                patientResponse.requestAuthorization { granted in
-                                    if granted {
-                                        patientResponse.startRecording(key: recordKey)
+                                    patientResponse.requestAuthorization { granted in
+                                        if granted {
+                                            patientResponse.startRecording(key: recordKey, language: languageStore.selectedLanguage)
+                                        }
                                     }
-                                }
                             }
                         } label: {
                             HStack(spacing: 8) {

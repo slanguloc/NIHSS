@@ -22,15 +22,34 @@ final class PatientResponseService: NSObject, ObservableObject {
     @Published var response9_1Translated = ""
     @Published var response9_3Transcribed = ""
     @Published var response9_3Translated = ""
+    @Published var response8Transcribed = ""
+    @Published var response8Translated = ""
+    @Published var response11Transcribed = ""
+    @Published var response11Translated = ""
     @Published var errorMessage: String?
     @Published var authorizationStatus: SFSpeechRecognizerAuthorizationStatus = .notDetermined
 
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "es-ES"))
-        ?? SFSpeechRecognizer(locale: Locale(identifier: "es-MX"))
-        ?? SFSpeechRecognizer()
+    /// Recognizer for current recording session (Spanish or Haitian Creole).
+    private var currentRecognizer: SFSpeechRecognizer?
+    /// Language for the active recording; used when translating to English.
+    private var recordingLanguage: AppLanguage = .spanish
+
+    /// Returns a speech recognizer for the given patient language, or Spanish fallback.
+    private func speechRecognizer(for language: AppLanguage) -> SFSpeechRecognizer? {
+        switch language {
+        case .spanish:
+            return SFSpeechRecognizer(locale: Locale(identifier: "es-ES"))
+                ?? SFSpeechRecognizer(locale: Locale(identifier: "es-MX"))
+                ?? SFSpeechRecognizer(locale: Locale(identifier: "es"))
+        case .haitianCreole:
+            return SFSpeechRecognizer(locale: Locale(identifier: "ht-HT"))
+                ?? SFSpeechRecognizer(locale: Locale(identifier: "ht"))
+                ?? SFSpeechRecognizer(locale: Locale(identifier: "fr-HT"))
+        }
+    }
 
     override init() {
         super.init()
@@ -61,16 +80,24 @@ final class PatientResponseService: NSObject, ObservableObject {
     }
 
     /// Start recording for item 1b (questionIndex 0 = month, 1 = age).
-    func startRecording(questionIndex: Int) {
-        startRecording(key: "1b-\(questionIndex)")
+    func startRecording(questionIndex: Int, language: AppLanguage = .spanish) {
+        startRecording(key: "1b-\(questionIndex)", language: language)
     }
 
-    /// Start recording for a key: "1b-0", "1b-1", "9-0" (subsection 1), "9-2" (subsection 3).
-    func startRecording(key: String) {
-        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
-            errorMessage = "Speech recognition not available."
+    /// Start recording for a key: "1b-0", "1b-1", "9-0" (subsection 1), "9-2" (subsection 3). Uses the given language for recognition and translation.
+    func startRecording(key: String, language: AppLanguage = .spanish) {
+        var recognizer = speechRecognizer(for: language)
+        if recognizer == nil || recognizer?.isAvailable == false {
+            recognizer = speechRecognizer(for: .spanish)
+            recordingLanguage = .spanish
+        } else {
+            recordingLanguage = language
+        }
+        guard let speechRecognizer = recognizer, speechRecognizer.isAvailable else {
+            errorMessage = "Speech recognition not available for this language."
             return
         }
+        currentRecognizer = speechRecognizer
 
         errorMessage = nil
         transcribedText = ""
@@ -116,13 +143,13 @@ final class PatientResponseService: NSObject, ObservableObject {
         }
         isRecording = true
 
-        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+        recognitionTask = currentRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 if let result = result {
                     self.transcribedText = result.bestTranscription.formattedString
                     if result.isFinal, !result.bestTranscription.formattedString.isEmpty {
-                        let translated = self.translateToEnglish(result.bestTranscription.formattedString)
+                        let translated = self.translateToEnglish(result.bestTranscription.formattedString, from: self.recordingLanguage)
                         self.saveResponse(transcribed: result.bestTranscription.formattedString, translated: translated)
                     }
                 }
@@ -144,11 +171,12 @@ final class PatientResponseService: NSObject, ObservableObject {
         audioEngine = nil
         isRecording = false
         if !transcribedText.isEmpty {
-            let translated = translateToEnglish(transcribedText)
+            let translated = translateToEnglish(transcribedText, from: recordingLanguage)
             saveResponse(transcribed: transcribedText, translated: translated)
         }
         recordingQuestionIndex = nil
         recordingKey = nil
+        currentRecognizer = nil
     }
 
     private func saveResponse(transcribed: String, translated: String) {
@@ -167,6 +195,12 @@ final class PatientResponseService: NSObject, ObservableObject {
             } else if key == "9-2" {
                 response9_3Transcribed = transcribed
                 response9_3Translated = translated
+            } else if key == "8" {
+                response8Transcribed = transcribed
+                response8Translated = translated
+            } else if key == "11" {
+                response11Transcribed = transcribed
+                response11Translated = translated
             }
         }
     }
@@ -186,6 +220,22 @@ final class PatientResponseService: NSObject, ObservableObject {
         return (subsectionIndex == 0 && key == "9-0") || (subsectionIndex == 2 && key == "9-2")
     }
 
+    func responseForItem8() -> (transcribed: String, translated: String) {
+        (response8Transcribed, response8Translated)
+    }
+
+    func isRecordingItem8() -> Bool {
+        recordingKey == "8"
+    }
+
+    func responseForItem11() -> (transcribed: String, translated: String) {
+        (response11Transcribed, response11Translated)
+    }
+
+    func isRecordingItem11() -> Bool {
+        recordingKey == "11"
+    }
+
     func reset() {
         transcribedText = ""
         translatedText = ""
@@ -197,11 +247,23 @@ final class PatientResponseService: NSObject, ObservableObject {
         response9_1Translated = ""
         response9_3Transcribed = ""
         response9_3Translated = ""
+        response8Transcribed = ""
+        response8Translated = ""
+        response11Transcribed = ""
+        response11Translated = ""
         errorMessage = nil
     }
 
+    /// Translate patient speech to English (Spanish or Haitian Creole).
+    private func translateToEnglish(_ text: String, from language: AppLanguage) -> String {
+        switch language {
+        case .spanish: return translateSpanishToEnglish(text)
+        case .haitianCreole: return translateCreoleToEnglish(text)
+        }
+    }
+
     /// Spanish → English translation (word-by-word + phrases) for LOC and item 9.
-    private func translateToEnglish(_ text: String) -> String {
+    private func translateSpanishToEnglish(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return text }
 
@@ -219,6 +281,8 @@ final class PatientResponseService: NSObject, ObservableObject {
             ("segando el pasto", "mowing the grass"), ("segando el césped", "mowing the grass"), ("segando el cesped", "mowing the grass"),
             ("recogiendo frutas", "picking fruits"), ("recogiendo fruta", "picking fruit"), ("recogiendo flores", "picking flowers"),
             ("cogiendo frutas", "picking fruits"), ("cogiendo fruta", "picking fruit"),
+            ("los dos lados", "both sides"), ("igual en los dos lados", "same on both sides"), ("el mismo", "the same"), ("la misma", "the same"),
+            ("en ambos lados", "on both sides"), ("por ambos lados", "on both sides"), ("los dos", "both"), ("las dos", "both"), ("uno y otro", "both"), ("una y otra", "both"), ("en los dos", "on both"), ("en las dos", "on both"),
         ]
         for (es, en) in phrases {
             result = result.replacingOccurrences(of: es, with: en)
@@ -273,6 +337,74 @@ final class PatientResponseService: NSObject, ObservableObject {
             "y": "and", "con": "with", "en": "in", "de": "of", "del": "of the", "que": "that", "por": "by",
             "para": "for", "como": "like", "muy": "very", "más": "more", "esto": "this", "esta": "this",
             "eso": "that", "aquí": "here", "allí": "there","tengo":"I have", "año":"year", "años":"years old",
+            "igual": "same", "lado": "side", "lados": "sides", "derecha": "right", "izquierda": "left", "siento": "I feel", "siente": "feels", "dolor": "pain", "toco": "I touch", "toca": "touches", "piel": "skin",
+            "ambos": "both", "ambas": "both",
+        ]
+
+        let tokens = result.split(separator: " ").map(String.init)
+        var translated: [String] = []
+        for token in tokens {
+            let cleaned = token.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            let normalized = cleaned.folding(options: .diacriticInsensitive, locale: nil)
+            let en = words[cleaned] ?? words[normalized]
+            if let en = en {
+                let suffix = String(token.dropFirst(cleaned.count))
+                translated.append(en + suffix)
+            } else {
+                translated.append(token)
+            }
+        }
+        result = translated.joined(separator: " ")
+        if result.isEmpty { return text }
+        return result.prefix(1).uppercased() + result.dropFirst()
+    }
+
+    /// Haitian Creole → English translation (word-by-word + phrases) for LOC and item 9.
+    private func translateCreoleToEnglish(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return text }
+
+        var result = trimmed.lowercased()
+
+        // Multi-word phrases first
+        let phrases: [(String, String)] = [
+            ("mwen pa konnen", "I don't know"), ("mwen pa sonje", "I don't remember"),
+            ("pa konnen", "don't know"), ("pa sonje", "don't remember"),
+            ("mwen gen", "I have"),
+            ("tou de bò", "both sides"), ("menm bagay", "same thing"), ("menm sou tou de bò", "same on both sides"),
+            ("tou de", "both"), ("toulede", "both"), ("toule de", "both"), ("tou le de", "both"), ("tout de", "both"), ("sou tou de bò", "on both sides"), ("nan tou de bò", "on both sides"),
+        ]
+        for (ht, en) in phrases {
+            result = result.replacingOccurrences(of: ht, with: en)
+        }
+
+        // Creole months, numbers, and common words
+        let words: [String: String] = [
+            "janvye": "January", "fevriye": "February", "mas": "March", "avril": "April",
+            "me": "May", "jen": "June", "jiyè": "July", "out": "August",
+            "septanm": "September", "oktòb": "October", "novanm": "November", "desanm": "December",
+            "zero": "0", "en": "1", "de": "2", "twa": "3", "kat": "4", "senk": "5",
+            "sis": "6", "sèt": "7", "uit": "8", "nèf": "9", "dis": "10",
+            "onz": "11", "douz": "12", "trèz": "13", "katoz": "14", "kenz": "15",
+            "sèz": "16", "disèt": "17", "dizuit": "18", "diznèf": "19",
+            "ven": "20", "trant": "30", "karant": "40", "senkant": "50",
+            "swasann": "60", "swasantdis": "70", "katreven": "80", "katrevenndis": "90", "san": "100",
+            "mont": "watch", "mont yo": "watches", "kreyon": "pencil", "kreyon yo": "pencils",
+            "cheval": "horse", "chwal": "horse", "boul": "ball", "boul yo": "balls",
+            "pye bwa": "tree", "pyebwa": "tree", "chèz": "chair", "chèz yo": "chairs",
+            "kanape": "couch", "sofá": "couch", "kadna": "lock", "kadna yo": "locks",
+            "kòf": "safe", "machin": "car", "machin yo": "cars", "oto": "car",
+            "kay": "house", "tab": "table", "sole": "sun", "dlo": "water",
+            "syèl": "sky", "wout": "road", "niyaj": "cloud", "zwazo": "bird", "zwazo yo": "birds",
+            "fwi": "fruit", "fwi yo": "fruits", "pom": "apple", "zoranj": "orange", "bannann": "banana",
+            "eskalye": "stairs", "gazon": "grass", "tè": "grass", "zèb": "grass",
+            "moun": "person", "nonm": "man", "fi": "woman", "fanmi": "family",
+            "mwen wè": "I see", "wè": "see", "se": "is", "gen": "there is", "yon": "a", "la": "the",
+            "ak": "and", "avèk": "with", "nan": "in", "pou": "for", "trè": "very",
+            "gran": "big", "piti": "small", "wouj": "red", "ble": "blue", "blan": "white", "nwa": "black", "vèt": "green", "jòn": "yellow",
+            "ane": "year", "lane": "years", "gen": "there is", "mwen": "I",
+            "menm": "same", "bò": "side", "doulè": "pain", "santi": "feel", "manyen": "touch", "po": "skin",
+            "toulede": "both", "toule": "both", "tout": "all",
         ]
 
         let tokens = result.split(separator: " ").map(String.init)

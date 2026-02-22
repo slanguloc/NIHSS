@@ -8,13 +8,18 @@ import Foundation
 /// Patient-facing language. Extensible for future languages.
 enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     case spanish = "es"
+    case haitianCreole = "ht"  // Implemented but hidden from UI until ready to release
 
     var id: String { rawValue }
+
+    /// Languages shown in the language picker. Haitian Creole is hidden for now.
+    static var visibleToUser: [AppLanguage] { [.spanish] }
 
     /// Display name for the language picker.
     var displayName: String {
         switch self {
         case .spanish: return "Español"
+        case .haitianCreole: return "Kreyòl ayisyen"
         }
     }
 
@@ -22,6 +27,7 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     var speechLocale: String {
         switch self {
         case .spanish: return "es-CO"  // Colombian — neutral accent
+        case .haitianCreole: return "ht-HT"  // Haitian Creole (Haiti)
         }
     }
 
@@ -29,6 +35,7 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     var speechFallbacks: [String] {
         switch self {
         case .spanish: return ["es-MX", "es"]
+        case .haitianCreole: return ["ht"]
         }
     }
 }

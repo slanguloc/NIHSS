@@ -142,7 +142,7 @@ enum NIHSSData {
             providerInstructions: "Finger-nose and heel-shin. Score only if out of proportion to weakness. Ignore if paralysis.",
             providerPromptEnglish: "Say each command separately:",
             spanishPrompt: "Dígale cada orden por separado:",
-            spanishPhrases: ["Toque mi dedo y luego su nariz.", "Hazlo de nuevo varias veces.", "Deslice el talón de un pie desde la rodilla, hacia abajo, sobre la espinilla.", "Hazlo de nuevo varias veces."],
+            spanishPhrases: ["Toque mi dedo y luego su nariz.", "Hazlo de nuevo varias veces.", "Deslice el talón de un pie desde la rodilla hacia abajo y luago hacia arriba, sobre la espinilla.", "Hazlo de nuevo varias veces."],
             spanishPhraseImageNames: nil,
             options: [
                 NIHSSOption(id: "7-0", score: 0, englishText: "Absent", spanishText: "Ausente"),
@@ -196,14 +196,17 @@ enum NIHSSData {
                 NIHSSOption(id: "10-2", score: 2, englishText: "Severe / unintelligible or mute", spanishText: "Severa o ininteligible / mudo")
             ]
         ),
-        // 11. Extinction / Inattention
+        // 11. Extinction / Inattention (sensory + visual double simultaneous stimulation)
         NIHSSItem(
             id: "11",
             providerLabel: "11. Extinction or Inattention",
             providerInstructions: "Double simultaneous stimulation (visual, sensory). Score only if neglect in one modality after bilateral stimulation.",
-            providerPromptEnglish: "Say: When I touch you, tell me if it's on one side or both (sometimes one side, sometimes both).",
+            providerPromptEnglish: "Say each separately: (1) When I touch you, tell me if it's one side or both. (2) When I show you fingers, tell me how many you see (or which side/sides).",
             spanishPrompt: "Cuando le toque, dígame si es izquierdo, derecho, o los dos lados",
-            spanishPhrases: nil,
+            spanishPhrases: [
+                "Cuando le toque, dígame si es izquierdo, derecho, o los dos lados",
+                "Cuando le muestre los dedos, dígame cuántos ve y en qué lado (izquierda, derecha o ambos)"
+            ],
             spanishPhraseImageNames: nil,
             options: [
                 NIHSSOption(id: "11-0", score: 0, englishText: "No neglect", spanishText: "Sin negligencia"),
@@ -230,12 +233,68 @@ enum NIHSSData {
         }
         return steps
     }
+
+    // MARK: - Haitian Creole patient prompts (Kreyòl ayisyen)
+    /// Returns the patient prompt and phrases for Haitian Creole. Used by AssessmentStep.patientPromptToSpeak(language:) / patientPhrasesToSpeak(language:).
+    struct CreolePrompts {
+        static func prompt(for itemId: String, side: LimbSide?) -> String {
+            switch itemId {
+            case "1a": return ""
+            case "1b": return "Di pasyan chak kesyon an separéman:"
+            case "1c": return "Di chak lòd an separéman (ou men ki pa fèb la):"
+            case "2": return "Swiv dwèt mwen ak je w."
+            case "3": return "Kenbe gade sou nen mwen, epi di m konbyen dwèt w wè."
+            case "4": return "Di chak lòd an separéman:"
+            case "5Arm":
+                guard let side = side else { return "Kenbe bra w dwat, pa lage l." }
+                let bra = side == .left ? "bra gòch" : "bra dwat"
+                return "Kenbe \(bra) w dwat konsa, pa lage l."
+            case "6Leg":
+                guard let side = side else { return "Leve pye w, kenbe l anlè, pa lage l." }
+                let pye = side == .left ? "pye gòch" : "pye dwat"
+                return "Leve \(pye) w, kenbe l anlè, pa lage l."
+            case "7": return "Di chak lòd an separéman:"
+            case "8": return "Nou pral teste sansasyon kò w. M ap manyen po w oubyen fè w santi yon ti doulè nan divès kote."
+            case "9": return "Di chak pati an separéman:"
+            case "10": return "Repete mo sa yo byen fò:"
+            case "11": return "Lè m manyen w, di m si se yon bò oubyen tou de bò."
+            default: return ""
+        }
+    }
+    static func phrases(for itemId: String, side: LimbSide?) -> [String]? {
+        switch itemId {
+        case "1b": return ["Ki mwa nou ye?", "Konbyen ane ou gen?"]
+        case "1c": return ["Louvri epi fèmen je w.", "Sere epi lage men mwen an."]
+        case "4": return ["Montre m dan w.", "Fèmen je w byen fèm."]
+        case "5Arm" where side != nil:
+            return [prompt(for: itemId, side: side), "Ou mèt mete bra w atè."]
+        case "6Leg" where side != nil:
+            return [prompt(for: itemId, side: side), "Ou mèt mete pye w atè."]
+        case "7": return ["Touche dwèt mwen epi nen w.", "Refè l anpil fwa.", "Glise talon pye w sou janb w.", "Refè l anpil fwa."]
+        case "8": return ["Èske w santi menm bagay la sou tou de bò?", "Èske doulè a menm sou tou de bò?", "Dwat, gòch, oubyen tou de bò?"]
+        case "9": return ["Non objè sa yo:", "Li fraz sa yo:", "Gade imaj sa a epi dekri sa w wè."]
+        case "10": return ["Repete mo sa yo byen fò:", "Mamà", "Ta Te Ti", "Mitad e Mitad", "Mèsi", "Pye bwa", "Foutbòl"]
+        case "11": return [
+            "Lè m manyen w, di m si se yon bò oubyen tou de bò.",
+            "Lè m montre w dwèt, di m konbyen w wè ak ki bò (gòch, dwat oubyen tou de)."
+        ]
+        default: return nil
+        }
+    }
+    }
 }
 
 enum LimbSide: String, CaseIterable {
     case left = "Left"
     case right = "Right"
     var spanish: String { self == .left ? "Izquierdo" : "Derecho" }
+    /// Left/right label in the given patient language.
+    func label(for language: AppLanguage) -> String {
+        switch language {
+        case .spanish: return spanish
+        case .haitianCreole: return self == .left ? "gòch" : "dwat"
+        }
+    }
 }
 
 struct AssessmentStep: Identifiable {
@@ -280,5 +339,26 @@ struct AssessmentStep: Identifiable {
             return [spanishPromptToSpeak, "Puede bajar la pierna"]
         }
         return [spanishPromptToSpeak]
+    }
+
+    /// Patient prompt to speak (single string). Uses selected language.
+    func patientPromptToSpeak(language: AppLanguage) -> String {
+        switch language {
+        case .spanish: return spanishPromptToSpeak
+        case .haitianCreole: return NIHSSData.CreolePrompts.prompt(for: item.id, side: side)
+        }
+    }
+
+    /// Patient phrases to speak (one per Play). Uses selected language.
+    func patientPhrasesToSpeak(language: AppLanguage) -> [String] {
+        switch language {
+        case .spanish: return spanishPhrasesToSpeak
+        case .haitianCreole:
+            if let phrases = NIHSSData.CreolePrompts.phrases(for: item.id, side: side) {
+                return phrases
+            }
+            let single = NIHSSData.CreolePrompts.prompt(for: item.id, side: side)
+            return single.isEmpty ? [] : [single]
+        }
     }
 }

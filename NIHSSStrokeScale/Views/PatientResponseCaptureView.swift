@@ -56,11 +56,11 @@ struct PatientResponseCaptureView: View {
                         if responseService.isRecording && responseService.recordingQuestionIndex == index {
                             responseService.stopRecording()
                         } else if !responseService.isRecording {
-                            responseService.requestAuthorization { granted in
-                                if granted {
-                                    responseService.startRecording(questionIndex: index)
-                                }
-                            }
+                                    responseService.requestAuthorization { granted in
+                                        if granted {
+                                            responseService.startRecording(questionIndex: index, language: languageStore.selectedLanguage)
+                                        }
+                                    }
                         }
                     } label: {
                         HStack(spacing: 8) {

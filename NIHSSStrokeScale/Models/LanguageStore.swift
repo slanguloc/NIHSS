@@ -16,7 +16,8 @@ final class LanguageStore: ObservableObject {
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: key),
-           let lang = AppLanguage(rawValue: raw) {
+           let lang = AppLanguage(rawValue: raw),
+           AppLanguage.visibleToUser.contains(lang) {
             selectedLanguage = lang
         } else {
             selectedLanguage = .spanish
