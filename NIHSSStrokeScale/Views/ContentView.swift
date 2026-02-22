@@ -60,18 +60,27 @@ struct ContentView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            Image(systemName: "cross.case.fill")
+            Image(systemName: "brain")
                 .font(.system(size: 56))
                 .foregroundStyle(.red.gradient)
-            Text("NIH Stroke Scale")
+            Text("Zysquy")
                 .font(.title.bold())
-            Text("\(languageStore.selectedLanguage.displayName) patient support")
+            Text("NIH Stroke Scale for non-English speaking patients")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("For English-speaking providers during stroke code")
+                .multilineTextAlignment(.center)
+            Text("\(languageStore.selectedLanguage.displayName) patient support")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+            Text("For English-speaking providers during stroke code")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
+            Text("For education only. Not for clinical use.")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
         }
         .padding(.top, 0)
     }

@@ -1,6 +1,8 @@
-# NIHSS Stroke Scale — Spanish Patient Support
+# Zysquy — NIH Stroke Scale for non-English speaking patients
 
-iPhone app for **English-speaking healthcare providers** who run stroke codes with **Spanish-speaking patients**. It guides you through the full NIH Stroke Scale while giving you ready **Spanish phrases to say or show** to the patient at each step.
+**Educational use only. Not intended for clinical use.**
+
+iPhone app for **education and training** on the NIH Stroke Scale with support for **non-English speaking patients** (e.g. Spanish). It guides you through the full NIH Stroke Scale and provides **Spanish phrases to say or show** at each step for learning and practice purposes.
 
 ## Features
 
@@ -55,8 +57,12 @@ NIHSSStrokeScale/
 └── Assets.xcassets
 ```
 
-## Disclaimer
+## Disclaimer — education only, not for clinical use
 
-This app is a **clinical aid** only. It does not replace training on the official NIH Stroke Scale or your institution’s stroke protocols. Use in accordance with your facility’s policies and obtain appropriate certifications (e.g. AHA NIHSS training) as required.
+**This app is for education and training only. It is not intended for clinical use and must not be used to make or support clinical decisions, diagnoses, or treatment.**
 
-NIH Stroke Scale is a trademark of the National Institute of Neurological Disorders and Stroke (NINDS). This project is not affiliated with or endorsed by NINDS or NIH.
+- The app is designed for **learning and practice** of the NIH Stroke Scale and for **educational support** when working with non-English speaking patients in a training context.
+- It does **not** replace formal training on the official NIH Stroke Scale or your institution’s stroke protocols.
+- It is **not** a medical device and must **not** be relied upon for patient care. Clinical use of the NIH Stroke Scale should follow your facility’s policies, appropriate certifications (e.g. AHA NIHSS training), and applicable law.
+
+**NIH Stroke Scale** is a trademark of the National Institute of Neurological Disorders and Stroke (NINDS). This project is not affiliated with or endorsed by NINDS or NIH.

@@ -35,7 +35,7 @@ struct AssessmentFlowView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("NIHSS")
+                Text("Zysquy")
                     .font(.headline)
             }
             ToolbarItem(placement: .topBarTrailing) {

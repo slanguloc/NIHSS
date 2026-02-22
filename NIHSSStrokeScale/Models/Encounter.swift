@@ -49,15 +49,16 @@ final class EncounterStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-              let decoded = try? JSONDecoder().decode([Encounter].self, from: data) else {
-            return
+        guard let stored = UserDefaults.standard.data(forKey: userDefaultsKey) else { return }
+        let dataToDecode = LocalEncryptedStorage.decrypt(stored) ?? stored
+        if let decoded = try? JSONDecoder().decode([Encounter].self, from: dataToDecode) {
+            encounters = decoded
         }
-        encounters = decoded
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(encounters) else { return }
-        UserDefaults.standard.set(data, forKey: userDefaultsKey)
+        guard let plain = try? JSONEncoder().encode(encounters),
+              let encrypted = LocalEncryptedStorage.encrypt(plain) else { return }
+        UserDefaults.standard.set(encrypted, forKey: userDefaultsKey)
     }
 }
