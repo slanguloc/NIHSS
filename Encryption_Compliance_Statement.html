@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Encryption Compliance Statement — Zysquy</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 700px; margin: 48px auto; padding: 0 24px; line-height: 1.6; color: #333; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { font-size: 0.9rem; color: #666; margin-bottom: 32px; }
+    h2 { font-size: 1rem; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+    p { margin: 0 0 12px 0; }
+    ul { margin: 0 0 12px 0; padding-left: 24px; }
+    .signature { margin-top: 32px; }
+    @media print { body { margin: 1in; } }
+  </style>
+</head>
+<body>
+  <h1>Encryption Compliance Statement</h1>
+  <p class="subtitle">App: Zysquy (NIH Stroke Scale for non-English speaking patients)</p>
+
+  <p>This document describes the use of encryption in the above-named app for App Store export compliance.</p>
+
+  <h2>1. Use of encryption</h2>
+  <p>The app uses encryption only as follows:</p>
+  <ul>
+    <li><strong>Local data storage:</strong> Data stored on the device (e.g., user language preference and assessment history) is encrypted using <strong>Apple’s CryptoKit framework</strong> (AES-GCM). This is encryption provided within Apple’s operating system; the app does not implement any proprietary or non-standard algorithms.</li>
+    <li><strong>Network communication:</strong> Any network communication uses standard <strong>HTTPS/TLS</strong> as provided by the operating system.</li>
+  </ul>
+
+  <h2>2. Proprietary or non-standard algorithms</h2>
+  <p>The app does <strong>not</strong> contain or use any encryption algorithms that are proprietary or that are not accepted as standard by international standards bodies (e.g., IEEE, IETF, ITU). All encryption is performed via Apple’s frameworks (CryptoKit, URLSession/HTTPS).</p>
+
+  <h2>3. Standard encryption in addition to Apple’s OS</h2>
+  <p>The app does <strong>not</strong> use standard encryption algorithms instead of, or in addition to, the encryption within Apple’s operating system in a manner that would require export documentation. The app uses only encryption that is accessed through Apple’s operating system (CryptoKit and system TLS).</p>
+
+  <h2>4. Conclusion</h2>
+  <p>This use of encryption is exempt from the requirement to submit formal encryption registration (ERN) or classification documentation (CCATS). No separate encryption documentation is required beyond this statement.</p>
+
+  <p class="signature">Submitted for App Store Connect export compliance.</p>
+</body>
+</html>

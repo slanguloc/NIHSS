@@ -33,7 +33,7 @@ If you prefer to use a physical iPhone, connect it via USB, trust the computer o
 
 ## Item 9 — Picture to describe
 
-For **item 9 (Best Language)**, the app shows **objects to name** (watch, pencil) and a **picture to describe**. The object icons use system graphics. The “picture to describe” uses the image set **Item9_DescribeImage** in `Assets.xcassets`. To use your own image (e.g. a line drawing or scene for the patient to describe), add 1x, 2x, and 3x images to **Item9_DescribeImage.imageset** in Xcode. If no image is added, a placeholder area is still shown.
+For **item 9 (Best Language)**, the app shows **objects to name** (watch, pencil) and a **picture to describe**. The object icons use system graphics. The “picture to describe” uses the image set **Item9_DescribeImage** in `Assets.xcassets`. To use your own image (e.g. a line drawing or scene for the patient to describe), add 1x, 2x, and 3x images to **Item9_DescribeImage.imageset** in Xcode. If no image is added, a placeholder area is still shown. The Item 9 figures (Item9_Figure2, Item9_Figure3, Item9_Figure4) are from **Mayo Clinic Proceedings 2006;81:476-480** — see [SOURCES.md](SOURCES.md).
 
 ## Requirements
 

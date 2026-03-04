@@ -173,6 +173,7 @@ enum NIHSSData {
             providerPromptEnglish: "Say each prompt separately. (1) Name objects. (2) Read sentences. (3) Describe picture.",
             spanishPrompt: "Dígale cada parte por separado:",
             spanishPhrases: ["Nombre estos objetos:", "Lea las siguientes frases:", "Mire esta imagen y describa lo qué ve"],
+            // Figures from Mayo Clinic Proceedings 2006;81:476-480 (see SOURCES.md)
             spanishPhraseImageNames: ["Item9_Figure2", "Item9_Figure3", "Item9_Figure4"],
             options: [
                 NIHSSOption(id: "9-0", score: 0, englishText: "No aphasia", spanishText: "Sin afasia"),

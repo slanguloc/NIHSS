@@ -19,8 +19,15 @@ struct ItemCardView: View {
     let step: AssessmentStep
     let selectedScore: Int?
     let onSelectScore: (Int) -> Void
+    /// Optional nav bar: when set, a fixed bottom bar (Previous/Next or Finish) is shown below the scrolling content.
+    var onPrevious: (() -> Void)? = nil
+    var onNext: (() -> Void)? = nil
+    var onFinish: (() -> Void)? = nil
+    var showPrevious: Bool = false
+    var isLastStep: Bool = false
 
     var body: some View {
+        VStack(spacing: 0) {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
                 // Provider: item label and instructions (English)
@@ -295,11 +302,40 @@ struct ItemCardView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 2)
-            .padding(.bottom, 4)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if onNext != nil || onFinish != nil {
+                Divider()
+                HStack(spacing: 16) {
+                    if showPrevious, let onPrevious = onPrevious {
+                        Button("Previous", action: onPrevious)
+                            .buttonStyle(.bordered)
+                    }
+                    Spacer()
+                    if isLastStep, let onFinish = onFinish {
+                        Button("Finish", action: onFinish)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                    } else if let onNext = onNext {
+                        Button("Next", action: onNext)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 4)
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemBackground))
+                .ignoresSafeArea(edges: .bottom)
+            }
+        }
+        .background(Color(.systemBackground))
+        .ignoresSafeArea(edges: .top)
         .fullScreenCover(item: $item9Expanded) { expanded in
             let idx = expanded.index
             let patientPhrases = step.patientPhrasesToSpeak(language: languageStore.selectedLanguage)
@@ -350,7 +386,7 @@ private struct Item9FullScreenView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 2)
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 0)
                 }
                 ScrollView {
                     VStack(spacing: 12) {
@@ -383,6 +419,9 @@ private struct Item9FullScreenView: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal)
+                        Text("Source: Mayo Clinic Proc 2006;81:476-480")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.7))
                     }
                     .padding(.bottom, showRecordButton ? 8 : 16)
                 }

@@ -15,20 +15,51 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    header
-                    startButton
-                    if state.scores.count > 0 {
-                        resumeOrNewSection(state: state, showingAssessment: $showingAssessment)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Button {
+                                onChangeLanguage()
+                            } label: {
+                                Label(languageStore.selectedLanguage.displayName, systemImage: "globe")
+                            }
+                            Spacer()
+                            Button {
+                                showingHistory = true
+                            } label: {
+                                Label("History", systemImage: "clock.arrow.circlepath")
+                            }
+                        }
+                        .font(.subheadline)
+                        .padding(.top, 8)
+
+                        header
+                            .padding(.top, 12)
+                        if state.scores.count > 0 {
+                            resumeOrNewSection(state: state, showingAssessment: $showingAssessment)
+                        }
+                        Spacer(minLength: 4)
                     }
-                    Spacer(minLength: 4)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 2)
-                .padding(.bottom, 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scrollIndicators(.visible)
+
+                Divider()
+                startButton
+                    .padding(.top, 12)
+                    .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemBackground))
+                    .ignoresSafeArea(edges: .bottom)
             }
-            .scrollIndicators(.visible)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
+            .ignoresSafeArea(edges: [.top, .bottom])
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $showingAssessment) {
                 AssessmentFlowView(state: state)
                     .environmentObject(encounterStore)
@@ -39,22 +70,7 @@ struct ContentView: View {
                         .environmentObject(encounterStore)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        onChangeLanguage()
-                    } label: {
-                        Label(languageStore.selectedLanguage.displayName, systemImage: "globe")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingHistory = true
-                    } label: {
-                        Label("History", systemImage: "clock.arrow.circlepath")
-                    }
-                }
-            }
+            .background(Color(.systemBackground))
         }
     }
 

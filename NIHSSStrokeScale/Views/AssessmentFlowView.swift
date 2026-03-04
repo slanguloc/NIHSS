@@ -17,31 +17,55 @@ struct AssessmentFlowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            progressBar
+            // Nav bar at top of screen with no gap: background extends to top, content uses device safe area only
+            VStack(spacing: 0) {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                    }
+                    Spacer()
+                    Text("Zysquy")
+                        .font(.headline)
+                    Spacer()
+                    Text("Total: \(state.totalScore)")
+                        .font(.subheadline.monospacedDigit().bold())
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 38)
+                .padding(.bottom, 4)
+
+                progressBar
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
+            .background(Color(.systemBackground))
+            .ignoresSafeArea(edges: .top)
+
             if let step = currentStep {
                 ItemCardView(
                     step: step,
                     selectedScore: state.score(for: step.id),
-                    onSelectScore: { state.setScore(step.id, $0) }
+                    onSelectScore: { state.setScore(step.id, $0) },
+                    onPrevious: { currentIndex -= 1 },
+                    onNext: { currentIndex += 1 },
+                    onFinish: {
+                        encounterStore.addEncounter(from: state)
+                        showSummary = true
+                    },
+                    showPrevious: currentIndex > 0,
+                    isLastStep: isLastStep
                 )
-                .frame(minHeight: 0, maxHeight: .infinity)
             }
-            navButtons
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+        .ignoresSafeArea(edges: [.top, .bottom])
+        .navigationBarHidden(true)
         .sheet(isPresented: $showSummary) {
             SummaryView(state: state)
                 .onDisappear { dismiss() }
-        }
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Zysquy")
-                    .font(.headline)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Text("Total: \(state.totalScore)")
-                    .font(.subheadline.monospacedDigit().bold())
-            }
         }
     }
 
@@ -59,34 +83,6 @@ struct AssessmentFlowView: View {
         .frame(height: 4)
     }
 
-    private var navButtons: some View {
-        HStack(spacing: 16) {
-            if currentIndex > 0 {
-                Button("Previous") {
-                    currentIndex -= 1
-                }
-                .buttonStyle(.bordered)
-            }
-            Spacer()
-            if isLastStep {
-                Button("Finish") {
-                    encounterStore.addEncounter(from: state)
-                    showSummary = true
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-            } else {
-                Button("Next") {
-                    currentIndex += 1
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, 4)
-    }
 }
 
 #Preview {

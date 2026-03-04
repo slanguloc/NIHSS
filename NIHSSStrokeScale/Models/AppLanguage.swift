@@ -31,11 +31,19 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Fallback voice codes if primary not available.
+    /// Fallback voice codes if primary not available (order tried after speechLocale).
     var speechFallbacks: [String] {
         switch self {
-        case .spanish: return ["es-MX", "es"]
-        case .haitianCreole: return ["ht"]
+        case .spanish: return ["es-MX", "es-ES", "es-US", "es-AR", "es"]
+        case .haitianCreole: return ["ht", "fr"]
+        }
+    }
+
+    /// Language prefix for scanning AVSpeechSynthesisVoice.speechVoices() (e.g. "es", "ht").
+    var voiceLanguagePrefix: String {
+        switch self {
+        case .spanish: return "es"
+        case .haitianCreole: return "ht"
         }
     }
 }
