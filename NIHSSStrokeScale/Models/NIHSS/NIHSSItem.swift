@@ -20,10 +20,27 @@ struct NIHSSItem: Identifiable {
     let spanishPhrases: [String]?
     /// Optional image asset names, one per spanishPhrases (e.g. item 9: Figure 2, 3, 4 from Mayo PDF). When set, count must match spanishPhrases.
     let spanishPhraseImageNames: [String]?
+    /// Optional English-specific image asset names. Same indexing as
+    /// `spanishPhraseImageNames`. When nil, the Spanish image is reused.
+    /// Used by item 9 to show the standard NIH/NINDS English NIHSS images
+    /// (naming card, sentence card, picture).
+    var englishPhraseImageNames: [String]? = nil
     /// Scoring options: score value and Spanish text for that option (when relevant).
     let options: [NIHSSOption]
     /// If true, this item has two sides (e.g. motor arm left/right) and options may repeat.
     var hasLeftRight: Bool { id.hasSuffix("Arm") || id.hasSuffix("Leg") }
+
+    /// Returns the appropriate image names to show for the given patient
+    /// language. Falls back to the Spanish/default set when no language-
+    /// specific set is provided.
+    func phraseImageNames(for language: AppLanguage) -> [String]? {
+        switch language {
+        case .english:
+            return englishPhraseImageNames ?? spanishPhraseImageNames
+        case .spanish, .haitianCreole:
+            return spanishPhraseImageNames
+        }
+    }
 }
 
 struct NIHSSOption: Identifiable {

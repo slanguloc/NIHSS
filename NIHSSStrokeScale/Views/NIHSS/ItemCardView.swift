@@ -27,6 +27,36 @@ struct ItemCardView: View {
     var isLastStep: Bool = false
 
     var body: some View {
+        // One-finger swipe navigation between NIHSS steps.
+        // Horizontal-only gesture so it doesn't fight with the vertical ScrollView.
+        let swipeGesture = DragGesture(minimumDistance: 25, coordinateSpace: .local)
+            .onEnded { value in
+                guard !patientResponse.isRecording else { return }
+                guard item9Expanded == nil else { return }
+
+                let dx = value.translation.width
+                let dy = value.translation.height
+                let absDx = abs(dx)
+                let absDy = abs(dy)
+
+                // Must be clearly horizontal and above threshold.
+                guard absDx > absDy, absDx > 60 else { return }
+
+                if dx < 0 {
+                    // Swipe left = next (or finish on last step).
+                    if isLastStep {
+                        onFinish?()
+                    } else {
+                        onNext?()
+                    }
+                } else {
+                    // Swipe right = previous.
+                    if showPrevious {
+                        onPrevious?()
+                    }
+                }
+            }
+
         VStack(spacing: 0) {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
@@ -65,7 +95,7 @@ struct ItemCardView: View {
                     }
                     ForEach(Array(step.patientPhrasesToSpeak(language: languageStore.selectedLanguage).enumerated()), id: \.offset) { index, phrase in
                         let hasImage = step.item.id == "9",
-                            imageNames = step.item.spanishPhraseImageNames,
+                            imageNames = step.item.phraseImageNames(for: languageStore.selectedLanguage),
                             imageName = (imageNames != nil && index < imageNames!.count && !imageNames![index].isEmpty) ? imageNames![index] : nil
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .top, spacing: 6) {
@@ -166,7 +196,7 @@ struct ItemCardView: View {
                                                     .font(.caption)
                                                     .foregroundStyle(.secondary)
                                             }
-                                            if !response.translated.isEmpty {
+                                            if !response.translated.isEmpty, languageStore.selectedLanguage != .english {
                                                 Text("Translation (English): \(response.translated)")
                                                     .font(.caption.bold())
                                             }
@@ -215,7 +245,7 @@ struct ItemCardView: View {
                                                     .font(.caption)
                                                     .foregroundStyle(.secondary)
                                             }
-                                            if !response.translated.isEmpty {
+                                            if !response.translated.isEmpty, languageStore.selectedLanguage != .english {
                                                 Text("Translation (English): \(response.translated)")
                                                     .font(.caption.bold())
                                             }
@@ -264,7 +294,7 @@ struct ItemCardView: View {
                                                     .font(.caption)
                                                     .foregroundStyle(.secondary)
                                             }
-                                            if !response.translated.isEmpty {
+                                            if !response.translated.isEmpty, languageStore.selectedLanguage != .english {
                                                 Text("Translation (English): \(response.translated)")
                                                     .font(.caption.bold())
                                             }
@@ -302,8 +332,8 @@ struct ItemCardView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
+            .padding(.top, 2)
+            .padding(.bottom, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -334,13 +364,14 @@ struct ItemCardView: View {
                 .ignoresSafeArea(edges: .bottom)
             }
         }
+        .simultaneousGesture(swipeGesture)
         .background(Color(.systemBackground))
         .ignoresSafeArea(edges: .top)
         .fullScreenCover(item: $item9Expanded) { expanded in
             let idx = expanded.index
             let patientPhrases = step.patientPhrasesToSpeak(language: languageStore.selectedLanguage)
             if idx < patientPhrases.count,
-               let imageNames = step.item.spanishPhraseImageNames,
+               let imageNames = step.item.phraseImageNames(for: languageStore.selectedLanguage),
                idx < imageNames.count,
                !imageNames[idx].isEmpty {
                 Item9FullScreenView(
@@ -462,7 +493,7 @@ private struct Item9FullScreenView: View {
                                         .font(.caption)
                                         .foregroundStyle(.white.opacity(0.9))
                                 }
-                                if !response.translated.isEmpty {
+                                if !response.translated.isEmpty, languageStore.selectedLanguage != .english {
                                     Text("Translation (English): \(response.translated)")
                                         .font(.caption.bold())
                                         .foregroundStyle(.white)

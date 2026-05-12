@@ -12,6 +12,11 @@ struct AssessmentFlowView: View {
     @State private var currentIndex: Int = 0
     @State private var showSummary = false
 
+    /// Optional callback invoked with the final NIHSS total when the user
+    /// finishes the assessment. Used by the Stroke Code Timer to record the
+    /// total on the active stroke-code session.
+    var onComplete: ((Int) -> Void)? = nil
+
     private var currentStep: AssessmentStep? { state.step(at: currentIndex) }
     private var isLastStep: Bool { currentIndex >= state.totalSteps - 1 }
 
@@ -52,6 +57,7 @@ struct AssessmentFlowView: View {
                     onNext: { currentIndex += 1 },
                     onFinish: {
                         encounterStore.addEncounter(from: state)
+                        onComplete?(state.totalScore)
                         showSummary = true
                     },
                     showPrevious: currentIndex > 0,

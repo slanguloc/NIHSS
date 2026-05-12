@@ -32,7 +32,7 @@ final class PatientResponseService: NSObject, ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    /// Recognizer for current recording session (Spanish or Haitian Creole).
+    /// Recognizer for current recording session (patient language).
     private var currentRecognizer: SFSpeechRecognizer?
     /// Language for the active recording; used when translating to English.
     private var recordingLanguage: AppLanguage = .spanish
@@ -40,6 +40,10 @@ final class PatientResponseService: NSObject, ObservableObject {
     /// Returns a speech recognizer for the given patient language, or Spanish fallback.
     private func speechRecognizer(for language: AppLanguage) -> SFSpeechRecognizer? {
         switch language {
+        case .english:
+            return SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+                ?? SFSpeechRecognizer(locale: Locale(identifier: "en-GB"))
+                ?? SFSpeechRecognizer(locale: Locale(identifier: "en"))
         case .spanish:
             return SFSpeechRecognizer(locale: Locale(identifier: "es-ES"))
                 ?? SFSpeechRecognizer(locale: Locale(identifier: "es-MX"))
@@ -87,6 +91,12 @@ final class PatientResponseService: NSObject, ObservableObject {
     /// Start recording for a key: "1b-0", "1b-1", "9-0" (subsection 1), "9-2" (subsection 3). Uses the given language for recognition and translation.
     func startRecording(key: String, language: AppLanguage = .spanish) {
         var recognizer = speechRecognizer(for: language)
+        if recognizer == nil || recognizer?.isAvailable == false {
+            if language == .english {
+                recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+                    ?? SFSpeechRecognizer(locale: Locale(identifier: "en"))
+            }
+        }
         if recognizer == nil || recognizer?.isAvailable == false {
             recognizer = speechRecognizer(for: .spanish)
             recordingLanguage = .spanish
@@ -257,6 +267,7 @@ final class PatientResponseService: NSObject, ObservableObject {
     /// Translate patient speech to English (Spanish or Haitian Creole).
     private func translateToEnglish(_ text: String, from language: AppLanguage) -> String {
         switch language {
+        case .english: return text
         case .spanish: return translateSpanishToEnglish(text)
         case .haitianCreole: return translateCreoleToEnglish(text)
         }

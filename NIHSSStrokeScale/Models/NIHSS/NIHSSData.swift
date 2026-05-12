@@ -175,6 +175,10 @@ enum NIHSSData {
             spanishPhrases: ["Nombre estos objetos:", "Lea las siguientes frases:", "Mire esta imagen y describa lo qué ve"],
             // Figures from Mayo Clinic Proceedings 2006;81:476-480 (see SOURCES.md)
             spanishPhraseImageNames: ["Item9_Figure2", "Item9_Figure3", "Item9_Figure4"],
+            // Standard NIH/NINDS English NIHSS images: naming objects, reading
+            // sentences, and the picture-description scene (public domain,
+            // US Federal Government work).
+            englishPhraseImageNames: ["Item9_Naming_English", "Item9_Sentences_English", "Item9_Picture_English"],
             options: [
                 NIHSSOption(id: "9-0", score: 0, englishText: "No aphasia", spanishText: "Sin afasia"),
                 NIHSSOption(id: "9-1", score: 1, englishText: "Mild to moderate aphasia", spanishText: "Afasia leve o moderada"),
@@ -235,6 +239,65 @@ enum NIHSSData {
         return steps
     }
 
+    // MARK: - English patient prompts
+    /// Patient-facing English prompts for TTS and display.
+    struct EnglishPrompts {
+        static func prompt(for itemId: String, side: LimbSide?) -> String {
+            switch itemId {
+            case "1a": return ""
+            case "1b": return "Ask the patient each question separately:"
+            case "1c": return "Give each command separately (or the non-paretic hand):"
+            case "2": return "Follow my finger with your eyes."
+            case "3": return "Keep your eyes on my nose, and tell me how many fingers you see."
+            case "4": return "Say each command separately:"
+            case "5Arm":
+                guard let side = side else { return "Hold your arm out straight, palm down, and don't let it drop." }
+                let arm = side == .left ? "left" : "right"
+                return "Hold your \(arm) arm out straight, palm down, and don't let it drop."
+            case "6Leg":
+                guard let side = side else { return "Lift your leg, hold it up, and don't let it drop." }
+                let leg = side == .left ? "left" : "right"
+                return "Lift your \(leg) leg, hold it up, and don't let it drop."
+            case "7": return "Say each command separately:"
+            case "8": return "We're going to test feeling on your body. I may touch your skin or cause a little discomfort in different places."
+            case "9": return "Say each part separately:"
+            case "10": return "Repeat these words aloud:"
+            case "11": return "When I touch you, tell me if it's the left side, right side, or both."
+            default: return ""
+            }
+        }
+
+        static func phrases(for itemId: String, side: LimbSide?) -> [String]? {
+            switch itemId {
+            case "1b": return ["What month is it?", "How old are you?"]
+            case "1c": return ["Open and close your eyes.", "Squeeze and release my hand."]
+            case "4": return ["Show me your teeth.", "Close your eyes tightly."]
+            case "5Arm" where side != nil:
+                return [prompt(for: itemId, side: side), "You can lower your arm."]
+            case "6Leg" where side != nil:
+                return [prompt(for: itemId, side: side), "You can lower your leg."]
+            case "7": return [
+                "Touch my finger, then your nose.",
+                "Do it again several times.",
+                "Slide your heel up and down your shin.",
+                "Do it again several times."
+            ]
+            case "8": return [
+                "Do you feel the same when I touch your skin on both sides?",
+                "Is the pain the same on both sides?",
+                "Right, left, or both sides?"
+            ]
+            case "9": return ["Name these objects:", "Read these sentences:", "Look at this picture and describe what you see."]
+            case "10": return ["Repeat these words aloud:", "Mama", "Tip-top", "Fifty-fifty", "Thanks", "Hiccup", "Baseball batter"]
+            case "11": return [
+                "When I touch you, tell me if it's the left side, right side, or both.",
+                "When I show you fingers, tell me how many you see and on which side (left, right, or both)."
+            ]
+            default: return nil
+            }
+        }
+    }
+
     // MARK: - Haitian Creole patient prompts (Kreyòl ayisyen)
     /// Returns the patient prompt and phrases for Haitian Creole. Used by AssessmentStep.patientPromptToSpeak(language:) / patientPhrasesToSpeak(language:).
     struct CreolePrompts {
@@ -292,6 +355,7 @@ enum LimbSide: String, CaseIterable {
     /// Left/right label in the given patient language.
     func label(for language: AppLanguage) -> String {
         switch language {
+        case .english: return rawValue
         case .spanish: return spanish
         case .haitianCreole: return self == .left ? "gòch" : "dwat"
         }
@@ -345,6 +409,7 @@ struct AssessmentStep: Identifiable {
     /// Patient prompt to speak (single string). Uses selected language.
     func patientPromptToSpeak(language: AppLanguage) -> String {
         switch language {
+        case .english: return NIHSSData.EnglishPrompts.prompt(for: item.id, side: side)
         case .spanish: return spanishPromptToSpeak
         case .haitianCreole: return NIHSSData.CreolePrompts.prompt(for: item.id, side: side)
         }
@@ -353,6 +418,12 @@ struct AssessmentStep: Identifiable {
     /// Patient phrases to speak (one per Play). Uses selected language.
     func patientPhrasesToSpeak(language: AppLanguage) -> [String] {
         switch language {
+        case .english:
+            if let phrases = NIHSSData.EnglishPrompts.phrases(for: item.id, side: side) {
+                return phrases
+            }
+            let single = NIHSSData.EnglishPrompts.prompt(for: item.id, side: side)
+            return single.isEmpty ? [] : [single]
         case .spanish: return spanishPhrasesToSpeak
         case .haitianCreole:
             if let phrases = NIHSSData.CreolePrompts.phrases(for: item.id, side: side) {

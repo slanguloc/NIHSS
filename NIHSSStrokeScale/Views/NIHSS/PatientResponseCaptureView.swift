@@ -89,7 +89,7 @@ struct PatientResponseCaptureView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
-                            if !translated.isEmpty {
+                            if !translated.isEmpty, languageStore.selectedLanguage != .english {
                                 Text("Translation (English): \(translated)")
                                     .font(.subheadline.bold())
                             }

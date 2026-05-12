@@ -1,6 +1,6 @@
 # Privacy Policy â€” Zysquy
 
-**Last updated:** [Add date when you publish]
+**Last updated:** Feb 22nd, 2026
 
 ## We do not collect your data
 
@@ -33,7 +33,7 @@ If we update this privacy policy, we will post the new version with an updated â
 
 ## Contact
 
-[Add your contact email or support URL for privacy questions.]
+sergio.angulo@gmail.com
 
 ---
 

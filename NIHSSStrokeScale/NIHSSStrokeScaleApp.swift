@@ -10,6 +10,7 @@ struct NIHSSStrokeScaleApp: App {
     @StateObject private var languageStore = LanguageStore()
     @StateObject private var spanishSpeech = SpanishSpeechService()
     @StateObject private var patientResponse = PatientResponseService()
+    @StateObject private var strokeCodeStore = StrokeCodeStore()
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +18,7 @@ struct NIHSSStrokeScaleApp: App {
                 .environmentObject(languageStore)
                 .environmentObject(spanishSpeech)
                 .environmentObject(patientResponse)
+                .environmentObject(strokeCodeStore)
         }
     }
 }
@@ -46,7 +48,7 @@ private struct RootView: View {
                     showLanguageSelection = false
                 }
             } else {
-                ContentView(onChangeLanguage: { showLanguageSelection = true })
+                HomeView(onChangeLanguage: { showLanguageSelection = true })
             }
         }
         .alert("Speech not available", isPresented: showNoVoiceAlert) {

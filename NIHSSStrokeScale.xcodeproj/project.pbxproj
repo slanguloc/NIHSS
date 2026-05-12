@@ -26,6 +26,16 @@
 		A1000017 /* PatientResponseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* PatientResponseService.swift */; };
 		A1000018 /* PatientResponseCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000018 /* PatientResponseCaptureView.swift */; };
 		A1000019 /* LocalEncryptedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* LocalEncryptedStorage.swift */; };
+		A1000020 /* StrokeCodeTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* StrokeCodeTimeline.swift */; };
+		A1000021 /* StrokeCodeTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* StrokeCodeTimerView.swift */; };
+		A1000022 /* StrokeCodeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* StrokeCodeHistoryView.swift */; };
+		A1000023 /* StrokeCodeDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023 /* StrokeCodeDecision.swift */; };
+		A1000024 /* StrokeCodeDecisionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* StrokeCodeDecisionView.swift */; };
+		A1000025 /* StrokeCodeScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* StrokeCodeScenario.swift */; };
+		A1000026 /* StrokeCodeScenarioPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* StrokeCodeScenarioPickerView.swift */; };
+		A1000027 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000027 /* HomeView.swift */; };
+		A1000028 /* NIHSSFromStrokeCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000028 /* NIHSSFromStrokeCodeView.swift */; };
+		A1000029 /* StrokeCodeConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000029 /* StrokeCodeConsent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +59,16 @@
 		A2000017 /* PatientResponseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientResponseService.swift; sourceTree = "<group>"; };
 		A2000018 /* PatientResponseCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientResponseCaptureView.swift; sourceTree = "<group>"; };
 		A2000019 /* LocalEncryptedStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalEncryptedStorage.swift; sourceTree = "<group>"; };
+		A2000020 /* StrokeCodeTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeTimeline.swift; sourceTree = "<group>"; };
+		A2000021 /* StrokeCodeTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeTimerView.swift; sourceTree = "<group>"; };
+		A2000022 /* StrokeCodeHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeHistoryView.swift; sourceTree = "<group>"; };
+		A2000023 /* StrokeCodeDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeDecision.swift; sourceTree = "<group>"; };
+		A2000024 /* StrokeCodeDecisionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeDecisionView.swift; sourceTree = "<group>"; };
+		A2000025 /* StrokeCodeScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeScenario.swift; sourceTree = "<group>"; };
+		A2000026 /* StrokeCodeScenarioPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeScenarioPickerView.swift; sourceTree = "<group>"; };
+		A2000027 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A2000028 /* NIHSSFromStrokeCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIHSSFromStrokeCodeView.swift; sourceTree = "<group>"; };
+		A2000029 /* StrokeCodeConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeConsent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,30 +113,72 @@
 		A4000003 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A2000027 /* HomeView.swift */,
+				A2000016 /* LanguageSelectionView.swift */,
+				A4000010 /* NIHSS */,
+				A4000011 /* StrokeCode */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A4000010 /* NIHSS */ = {
+			isa = PBXGroup;
+			children = (
 				A2000002 /* ContentView.swift */,
 				A2000006 /* AssessmentFlowView.swift */,
 				A2000007 /* ItemCardView.swift */,
 				A2000008 /* SummaryView.swift */,
 				A2000012 /* EncounterHistoryView.swift */,
 				A2000013 /* EncounterDetailView.swift */,
-				A2000016 /* LanguageSelectionView.swift */,
 				A2000018 /* PatientResponseCaptureView.swift */,
 			);
-			path = Views;
+			path = NIHSS;
+			sourceTree = "<group>";
+		};
+		A4000011 /* StrokeCode */ = {
+			isa = PBXGroup;
+			children = (
+				A2000021 /* StrokeCodeTimerView.swift */,
+				A2000024 /* StrokeCodeDecisionView.swift */,
+				A2000022 /* StrokeCodeHistoryView.swift */,
+				A2000026 /* StrokeCodeScenarioPickerView.swift */,
+				A2000028 /* NIHSSFromStrokeCodeView.swift */,
+			);
+			path = StrokeCode;
 			sourceTree = "<group>";
 		};
 		A4000004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A2000014 /* AppLanguage.swift */,
+				A2000015 /* LanguageStore.swift */,
+				A2000019 /* LocalEncryptedStorage.swift */,
+				A4000012 /* NIHSS */,
+				A4000013 /* StrokeCode */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A4000012 /* NIHSS */ = {
 			isa = PBXGroup;
 			children = (
 				A2000003 /* NIHSSItem.swift */,
 				A2000004 /* NIHSSData.swift */,
 				A2000005 /* AssessmentState.swift */,
 				A2000011 /* Encounter.swift */,
-				A2000014 /* AppLanguage.swift */,
-				A2000015 /* LanguageStore.swift */,
-				A2000019 /* LocalEncryptedStorage.swift */,
 			);
-			path = Models;
+			path = NIHSS;
+			sourceTree = "<group>";
+		};
+		A4000013 /* StrokeCode */ = {
+			isa = PBXGroup;
+			children = (
+				A2000020 /* StrokeCodeTimeline.swift */,
+				A2000023 /* StrokeCodeDecision.swift */,
+				A2000025 /* StrokeCodeScenario.swift */,
+				A2000029 /* StrokeCodeConsent.swift */,
+			);
+			path = StrokeCode;
 			sourceTree = "<group>";
 		};
 		A4000005 /* Services */ = {
@@ -215,6 +277,16 @@
 				A1000017 /* PatientResponseService.swift in Sources */,
 				A1000018 /* PatientResponseCaptureView.swift in Sources */,
 				A1000019 /* LocalEncryptedStorage.swift in Sources */,
+				A1000020 /* StrokeCodeTimeline.swift in Sources */,
+				A1000021 /* StrokeCodeTimerView.swift in Sources */,
+				A1000022 /* StrokeCodeHistoryView.swift in Sources */,
+				A1000023 /* StrokeCodeDecision.swift in Sources */,
+				A1000024 /* StrokeCodeDecisionView.swift in Sources */,
+				A1000025 /* StrokeCodeScenario.swift in Sources */,
+				A1000026 /* StrokeCodeScenarioPickerView.swift in Sources */,
+				A1000027 /* HomeView.swift in Sources */,
+				A1000028 /* NIHSSFromStrokeCodeView.swift in Sources */,
+				A1000029 /* StrokeCodeConsent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -337,7 +409,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = LUK5W53P5S;
 				ENABLE_PREVIEWS = YES;
@@ -351,7 +423,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nihss.strokescale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -370,7 +442,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = LUK5W53P5S;
 				ENABLE_PREVIEWS = YES;
@@ -384,7 +456,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nihss.strokescale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
