@@ -32,6 +32,7 @@ struct StrokeCodeDecisionView: View {
     var body: some View {
         VStack(spacing: 12) {
             disclaimerBanner
+            timelineAutoCaptureBanner
             patientDetailsCard
             anchorsCard
             imagingCard
@@ -92,6 +93,26 @@ struct StrokeCodeDecisionView: View {
     }
 
     // MARK: - Banner / footer
+
+    /// One-line note explaining that committing decisions here will
+    /// time-stamp the matching Timeline milestone (unless already set).
+    private var timelineAutoCaptureBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "clock.badge.checkmark.fill")
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Decisions auto-stamp the Timeline")
+                    .font(.subheadline.bold())
+                Text("Setting imaging, LVO status, or committing an IVT / EVT choice marks the matching Timeline milestone (CT interpreted, CTA, thrombolytic decision, EVT decision). Manual captures are never overwritten.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color.blue.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
 
     private var disclaimerBanner: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -1422,28 +1443,58 @@ struct StrokeCodeDecisionView: View {
     private var imagingBinding: Binding<ImagingResult> {
         Binding(
             get: { state.imagingResult },
-            set: { newValue in store.mutateDecisions { $0.imagingResult = newValue } }
+            set: { newValue in
+                store.mutateDecisions { $0.imagingResult = newValue }
+                // Reading non-contrast head CT IS the "CT interpreted" event.
+                if newValue != .pending {
+                    store.captureIfAbsent(milestoneId: "ctRead",
+                                          note: "Auto: imaging set to \(newValue.label)")
+                }
+            }
         )
     }
 
     private var lvoBinding: Binding<LvoStatus> {
         Binding(
             get: { state.lvoStatus },
-            set: { newValue in store.mutateDecisions { $0.lvoStatus = newValue } }
+            set: { newValue in
+                store.mutateDecisions { $0.lvoStatus = newValue }
+                // Setting LVO status presumes vessel imaging was reviewed.
+                if newValue != .unknown {
+                    store.captureIfAbsent(milestoneId: "cta",
+                                          note: "Auto: LVO status set to \(newValue.label)")
+                }
+            }
         )
     }
 
     private var thrombolyticBinding: Binding<ThrombolyticChoice> {
         Binding(
             get: { state.thrombolyticChosen },
-            set: { newValue in store.mutateDecisions { $0.thrombolyticChosen = newValue } }
+            set: { newValue in
+                store.mutateDecisions { $0.thrombolyticChosen = newValue }
+                // Any committed choice (give / decline / defer) IS the
+                // thrombolytic-decision milestone.
+                if newValue != .undecided {
+                    store.captureIfAbsent(milestoneId: "thrombolyticDecision",
+                                          note: "Auto: thrombolytic decision — \(newValue.label)")
+                }
+            }
         )
     }
 
     private var evtBinding: Binding<EvtChoice> {
         Binding(
             get: { state.evtChosen },
-            set: { newValue in store.mutateDecisions { $0.evtChosen = newValue } }
+            set: { newValue in
+                store.mutateDecisions { $0.evtChosen = newValue }
+                // Any committed EVT plan (planned / declined / deferred)
+                // IS the EVT-decision milestone.
+                if newValue != .undecided {
+                    store.captureIfAbsent(milestoneId: "evtDecision",
+                                          note: "Auto: EVT decision — \(newValue.label)")
+                }
+            }
         )
     }
 }

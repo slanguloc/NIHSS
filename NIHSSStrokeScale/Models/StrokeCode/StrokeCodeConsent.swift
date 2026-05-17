@@ -73,7 +73,7 @@ enum ConsentScriptCatalog {
                 texts: [
                     .english:  "We recommend giving \(drugEN). It is given through an IV. It works by dissolving the clot in the blood vessel of the brain so blood flow can return.",
                     .spanish:  "Recomendamos administrar \(drugES). Se administra por vía intravenosa. Funciona disolviendo el coágulo en la arteria del cerebro para que el flujo sanguíneo pueda regresar.",
-                    .haitianCreole: "Nou rekòmande pou nou bay \(drugHT). Yo bay li nan IV. Li travay nan disoud kayo nan atè sèvo a pou san an ka tounen."
+                    .haitianCreole: "Nou rekòmande pou nou bay \(drugHT). Yo bay li nan venn (IV). Li ede disoud kayo san an nan veso san sèvo a, pou san an ka pase ankò."
                 ]
             ),
             ConsentSection(
@@ -93,7 +93,7 @@ enum ConsentScriptCatalog {
                 texts: [
                     .english:  "The most important risk is bleeding. About 2 to 6 out of 100 patients can have a serious bleed in the brain that may cause more disability or, rarely, death. About 1 to 5 out of 100 may have swelling of the lips, tongue, or throat (angioedema). There can also be bleeding from the gums, IV sites, stomach, or urine.",
                     .spanish:  "El riesgo más importante es sangrado. Aproximadamente 2 a 6 de cada 100 pacientes pueden tener un sangrado serio en el cerebro, lo que puede causar más discapacidad o, raramente, la muerte. Aproximadamente 1 a 5 de cada 100 pueden tener inflamación de los labios, la lengua o la garganta (angioedema). También puede haber sangrado en las encías, sitios de IV, estómago u orina.",
-                    .haitianCreole: "Risk ki pi enpòtan an se sengnman. Apeprè 2 a 6 sou 100 pasyan ka gen yon gwo sengnman nan sèvo a ki ka koze plis enfimite oswa, raman, lanmò. Apeprè 1 a 5 sou 100 ka gen anflamasyon nan lèv, lang, oswa goj la (angioedèm). Genyen ki ka tou sengen nan jansiv, sit IV, vant, oswa pipi."
+                    .haitianCreole: "Risk ki pi enpòtan an se senyman. Apeprè 2 a 6 sou 100 pasyan ka gen yon gwo senyman nan sèvo a ki ka koze plis enfimite oswa, raman, lanmò. Apeprè 1 a 5 sou 100 ka gen anflamasyon nan lèv, lang, oswa goj la (angioedèm). Gen moun ki ka senyen nan jansiv, kote IV a, vant, oswa pipi."
                 ]
             ),
             ConsentSection(

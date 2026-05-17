@@ -424,6 +424,20 @@ final class StrokeCodeStore: ObservableObject {
         active = s
     }
 
+    /// Captures `milestoneId` only if it hasn't been captured yet. Returns
+    /// true when a new capture is created. Used by the Decisions tab to
+    /// auto-stamp the matching timeline milestone (e.g. when imaging is
+    /// interpreted or a thrombolytic decision is made) without
+    /// overwriting a manual capture the trainee already entered.
+    @discardableResult
+    func captureIfAbsent(milestoneId: String, at date: Date = Date(), note: String? = nil) -> Bool {
+        guard var s = active else { return false }
+        if s.events.contains(where: { $0.milestoneId == milestoneId }) { return false }
+        s.events.append(StrokeCodeEvent(milestoneId: milestoneId, timestamp: date, note: note))
+        active = s
+        return true
+    }
+
     /// Removes the timestamp for a given milestone from the active session.
     func clear(milestoneId: String) {
         guard var s = active else { return }

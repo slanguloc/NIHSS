@@ -304,43 +304,43 @@ enum NIHSSData {
         static func prompt(for itemId: String, side: LimbSide?) -> String {
             switch itemId {
             case "1a": return ""
-            case "1b": return "Di pasyan chak kesyon an separéman:"
-            case "1c": return "Di chak lòd an separéman (ou men ki pa fèb la):"
+            case "1b": return "Di pasyan chak kesyon an yonn apre lòt:"
+            case "1c": return "Bay chak lòd yonn apre lòt (itilize men ki pa fèb la):"
             case "2": return "Swiv dwèt mwen ak je w."
-            case "3": return "Kenbe gade sou nen mwen, epi di m konbyen dwèt w wè."
-            case "4": return "Di chak lòd an separéman:"
+            case "3": return "Gade nen mwen, epi di m konbyen dwèt ou wè."
+            case "4": return "Bay chak lòd yonn apre lòt:"
             case "5Arm":
-                guard let side = side else { return "Kenbe bra w dwat, pa lage l." }
+                guard let side = side else { return "Lonje bra w devan w, pa lage l." }
                 let bra = side == .left ? "bra gòch" : "bra dwat"
-                return "Kenbe \(bra) w dwat konsa, pa lage l."
+                return "Lonje \(bra) w devan w konsa, pa lage l."
             case "6Leg":
-                guard let side = side else { return "Leve pye w, kenbe l anlè, pa lage l." }
-                let pye = side == .left ? "pye gòch" : "pye dwat"
-                return "Leve \(pye) w, kenbe l anlè, pa lage l."
-            case "7": return "Di chak lòd an separéman:"
-            case "8": return "Nou pral teste sansasyon kò w. M ap manyen po w oubyen fè w santi yon ti doulè nan divès kote."
-            case "9": return "Di chak pati an separéman:"
+                guard let side = side else { return "Leve janm w, kenbe l anlè, pa lage l." }
+                let janm = side == .left ? "janm gòch" : "janm dwat"
+                return "Leve \(janm) w, kenbe l anlè, pa lage l."
+            case "7": return "Bay chak lòd yonn apre lòt:"
+            case "8": return "Nou pral teste sansasyon kò w. M ap manyen po w oubyen fè w santi yon ti doulè nan plizyè kote."
+            case "9": return "Bay chak pati yonn apre lòt:"
             case "10": return "Repete mo sa yo byen fò:"
-            case "11": return "Lè m manyen w, di m si se yon bò oubyen tou de bò."
+            case "11": return "Lè m manyen w, di m si se yon sèl bò oubyen tou de bò."
             default: return ""
         }
     }
     static func phrases(for itemId: String, side: LimbSide?) -> [String]? {
         switch itemId {
-        case "1b": return ["Ki mwa nou ye?", "Konbyen ane ou gen?"]
-        case "1c": return ["Louvri epi fèmen je w.", "Sere epi lage men mwen an."]
+        case "1b": return ["Ki mwa nou ye?", "Konbyen ane ou genyen?"]
+        case "1c": return ["Louvri epi fèmen je w.", "Sere men mwen, epi lage l."]
         case "4": return ["Montre m dan w.", "Fèmen je w byen fèm."]
         case "5Arm" where side != nil:
-            return [prompt(for: itemId, side: side), "Ou mèt mete bra w atè."]
+            return [prompt(for: itemId, side: side), "Ou mèt desann bra w."]
         case "6Leg" where side != nil:
-            return [prompt(for: itemId, side: side), "Ou mèt mete pye w atè."]
-        case "7": return ["Touche dwèt mwen epi nen w.", "Refè l anpil fwa.", "Glise talon pye w sou janb w.", "Refè l anpil fwa."]
-        case "8": return ["Èske w santi menm bagay la sou tou de bò?", "Èske doulè a menm sou tou de bò?", "Dwat, gòch, oubyen tou de bò?"]
-        case "9": return ["Non objè sa yo:", "Li fraz sa yo:", "Gade imaj sa a epi dekri sa w wè."]
-        case "10": return ["Repete mo sa yo byen fò:", "Mamà", "Ta Te Ti", "Mitad e Mitad", "Mèsi", "Pye bwa", "Foutbòl"]
+            return [prompt(for: itemId, side: side), "Ou mèt desann janm w."]
+        case "7": return ["Touche dwèt mwen, epi touche nen w.", "Refè l plizyè fwa.", "Glise talon w sou janm ou.", "Refè l plizyè fwa."]
+        case "8": return ["Èske w santi menm bagay la sou tou de bò?", "Èske doulè a menm jan sou tou de bò?", "Bò dwat, bò gòch, oubyen tou de bò?"]
+        case "9": return ["Nonmen objè sa yo:", "Li fraz sa yo:", "Gade imaj sa a, epi dekri sa w wè."]
+        case "10": return ["Repete mo sa yo byen fò:", "Manman", "Ta Te Ti", "Tip-Top", "Mèsi", "Pye bwa", "Foutbòl"]
         case "11": return [
-            "Lè m manyen w, di m si se yon bò oubyen tou de bò.",
-            "Lè m montre w dwèt, di m konbyen w wè ak ki bò (gòch, dwat oubyen tou de)."
+            "Lè m manyen w, di m si se yon sèl bò oubyen tou de bò.",
+            "Lè m montre w dwèt, di m konbyen w wè epi sou ki bò (gòch, dwat, oubyen tou de bò)."
         ]
         default: return nil
         }

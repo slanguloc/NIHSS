@@ -9,12 +9,14 @@ import Foundation
 enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     case english = "en"
     case spanish = "es"
-    case haitianCreole = "ht"  // Implemented but hidden from UI until ready to release
+    case haitianCreole = "ht"
 
     var id: String { rawValue }
 
-    /// Languages shown in the language picker. Haitian Creole is hidden for now.
-    static var visibleToUser: [AppLanguage] { [.english, .spanish] }
+    /// Languages exposed to the user in the language picker.
+    /// All three languages have full coverage: NIHSS prompts, TTS, speech
+    /// recognition + simple back-translation, and consent script translations.
+    static var visibleToUser: [AppLanguage] { [.english, .spanish, .haitianCreole] }
 
     /// Display name for the language picker.
     var displayName: String {
