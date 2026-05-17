@@ -11,22 +11,50 @@ private struct Item9Expanded: Identifiable {
     var id: Int { index }
 }
 
-/// Source line shown under Item 9 figures (language-specific images).
+/// Per-image source attribution for NIHSS Item 9 figures.
+private enum Item9ImageAttribution {
+    case nihOfficial
+    case mayo2006
+    case none
+
+    /// Maps each asset catalog name to its citation type.
+    static func forAsset(_ imageName: String) -> Item9ImageAttribution {
+        switch imageName {
+        case "Item9_Naming_English", "Item9_Sentences_English", "Item9_Picture_English":
+            return .nihOfficial
+        case "Item9_Figure2", "Item9_Figure3", "Item9_Figure4":
+            return .mayo2006
+        case "Item9_Sentences_Creole":
+            return .none
+        default:
+            return .none
+        }
+    }
+}
+
+/// Source line shown under Item 9 figures (per image asset).
 private struct Item9SourceAttribution: View {
-    let language: AppLanguage
+    let imageName: String
     /// When true, styles for the full-screen black overlay.
     var onDarkBackground: Bool = false
 
     private static let nihStrokeScaleURL = URL(string: "https://www.stroke.nih.gov")!
 
+    private var attribution: Item9ImageAttribution {
+        Item9ImageAttribution.forAsset(imageName)
+    }
+
     var body: some View {
         Group {
-            if language == .english {
+            switch attribution {
+            case .nihOfficial:
                 Link(destination: Self.nihStrokeScaleURL) {
                     Text("Source: NIH Stroke Scale (NINDS) — stroke.nih.gov")
                 }
-            } else {
+            case .mayo2006:
                 Text("Source: Mayo Clinic Proc 2006;81:476-480")
+            case .none:
+                EmptyView()
             }
         }
         .font(.caption2)
@@ -187,7 +215,7 @@ struct ItemCardView: View {
                                         item9Expanded = Item9Expanded(index: index)
                                     }
 
-                                    Item9SourceAttribution(language: languageStore.selectedLanguage)
+                                    Item9SourceAttribution(imageName: assetName)
                                 }
                             }
                             // Item 9 subsections 1 and 3: speech-to-text capture
@@ -347,6 +375,11 @@ struct ItemCardView: View {
                 }
                 }
 
+                // Item 3 (Visual): Creole finger-count answers → English numbers
+                if step.item.id == "3", languageStore.selectedLanguage == .haitianCreole {
+                    item3CreoleNumberRecordSection
+                }
+
                 // Score options
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Score")
@@ -416,6 +449,66 @@ struct ItemCardView: View {
             }
         }
     }
+
+    // MARK: - Item 3 Creole number capture
+
+    /// Speech capture for finger-count answers (e.g. "twa", "kat") with
+    /// Creole → English number translation for the evaluator.
+    private var item3CreoleNumberRecordSection: some View {
+        let response = patientResponse.responseForItem3()
+        let isRecordingThis = patientResponse.isRecordingItem3()
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Record the number the patient says (Creole → English)")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Button {
+                if isRecordingThis {
+                    patientResponse.stopRecording()
+                } else {
+                    patientResponse.requestAuthorization { granted in
+                        if granted {
+                            patientResponse.startRecording(key: "3", language: languageStore.selectedLanguage)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isRecordingThis ? "stop.circle.fill" : "mic.circle.fill")
+                        .font(.title3)
+                    Text(isRecordingThis ? "Stop recording" : "Record number answer")
+                        .font(.caption.bold())
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity)
+                .background(isRecordingThis ? Color.red.opacity(0.2) : Color.blue.opacity(0.12))
+                .foregroundStyle(.blue)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .disabled(patientResponse.authorizationStatus == .denied || (patientResponse.isRecording && !isRecordingThis))
+            if !response.transcribed.isEmpty || !response.translated.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !response.transcribed.isEmpty {
+                        Text("Patient said: \(response.transcribed)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !response.translated.isEmpty {
+                        Text("Numbers (English): \(response.translated)")
+                            .font(.caption.bold())
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color.gray.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.blue.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
 }
 
 /// Full-screen overlay for item 9 subset: Patient prompt + large image. Subsections 1 and 3 (index 0, 2) show record button at bottom.
@@ -481,7 +574,7 @@ private struct Item9FullScreenView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal)
                         Item9SourceAttribution(
-                            language: languageStore.selectedLanguage,
+                            imageName: imageName,
                             onDarkBackground: true
                         )
                     }

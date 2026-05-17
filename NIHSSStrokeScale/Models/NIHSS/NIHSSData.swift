@@ -179,6 +179,8 @@ enum NIHSSData {
             // sentences, and the picture-description scene (public domain,
             // US Federal Government work).
             englishPhraseImageNames: ["Item9_Naming_English", "Item9_Sentences_English", "Item9_Picture_English"],
+            // Creole: NIH naming + picture cards (English); Creole sentence card (app-generated).
+            haitianCreolePhraseImageNames: ["Item9_Naming_English", "Item9_Sentences_Creole", "Item9_Picture_English"],
             options: [
                 NIHSSOption(id: "9-0", score: 0, englishText: "No aphasia", spanishText: "Sin afasia"),
                 NIHSSOption(id: "9-1", score: 1, englishText: "Mild to moderate aphasia", spanishText: "Afasia leve o moderada"),

@@ -25,6 +25,9 @@ struct NIHSSItem: Identifiable {
     /// Used by item 9 to show the standard NIH/NINDS English NIHSS images
     /// (naming card, sentence card, picture).
     var englishPhraseImageNames: [String]? = nil
+    /// Haitian Creole Item 9 images: naming + picture reuse English NIH
+    /// assets; sentences use a dedicated Creole card.
+    var haitianCreolePhraseImageNames: [String]? = nil
     /// Scoring options: score value and Spanish text for that option (when relevant).
     let options: [NIHSSOption]
     /// If true, this item has two sides (e.g. motor arm left/right) and options may repeat.
@@ -37,8 +40,10 @@ struct NIHSSItem: Identifiable {
         switch language {
         case .english:
             return englishPhraseImageNames ?? spanishPhraseImageNames
-        case .spanish, .haitianCreole:
+        case .spanish:
             return spanishPhraseImageNames
+        case .haitianCreole:
+            return haitianCreolePhraseImageNames ?? englishPhraseImageNames ?? spanishPhraseImageNames
         }
     }
 }

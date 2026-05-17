@@ -26,6 +26,8 @@ final class PatientResponseService: NSObject, ObservableObject {
     @Published var response8Translated = ""
     @Published var response11Transcribed = ""
     @Published var response11Translated = ""
+    @Published var response3Transcribed = ""
+    @Published var response3Translated = ""
     @Published var errorMessage: String?
     @Published var authorizationStatus: SFSpeechRecognizerAuthorizationStatus = .notDetermined
 
@@ -211,6 +213,9 @@ final class PatientResponseService: NSObject, ObservableObject {
             } else if key == "11" {
                 response11Transcribed = transcribed
                 response11Translated = translated
+            } else if key == "3" {
+                response3Transcribed = transcribed
+                response3Translated = translated
             }
         }
     }
@@ -246,6 +251,14 @@ final class PatientResponseService: NSObject, ObservableObject {
         recordingKey == "11"
     }
 
+    func responseForItem3() -> (transcribed: String, translated: String) {
+        (response3Transcribed, response3Translated)
+    }
+
+    func isRecordingItem3() -> Bool {
+        recordingKey == "3"
+    }
+
     func reset() {
         transcribedText = ""
         translatedText = ""
@@ -261,6 +274,8 @@ final class PatientResponseService: NSObject, ObservableObject {
         response8Translated = ""
         response11Transcribed = ""
         response11Translated = ""
+        response3Transcribed = ""
+        response3Translated = ""
         errorMessage = nil
     }
 
@@ -384,6 +399,8 @@ final class PatientResponseService: NSObject, ObservableObject {
             ("mwen gen", "I have"),
             ("tou de bò", "both sides"), ("menm bagay", "same thing"), ("menm sou tou de bò", "same on both sides"),
             ("tou de", "both"), ("toulede", "both"), ("toule de", "both"), ("tou le de", "both"), ("tout de", "both"), ("sou tou de bò", "on both sides"), ("nan tou de bò", "on both sides"),
+            ("konbyen dwèt", "how many fingers"), ("konbyen", "how many"),
+            ("m wè", "I see"), ("mwen wè", "I see"), ("dwèt", "finger"), ("dwèt yo", "fingers"),
         ]
         for (ht, en) in phrases {
             result = result.replacingOccurrences(of: ht, with: en)

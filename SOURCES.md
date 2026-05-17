@@ -28,6 +28,18 @@ The NIH Stroke Scale is distributed by NINDS for clinical and educational use. T
 
 If you redistribute this app to others, verify your local licensing posture for the NIH/NINDS materials before broad publication.
 
+## Item 9 — Haitian Creole images (Best Language)
+
+When **Kreyòl ayisyen** is selected for patient language, NIHSS Item 9 uses:
+
+| Sub-task | Asset | Source |
+|----------|-------|--------|
+| 1. Name objects | `Item9_Naming_English` | Same NIH/NINDS naming card as English (see above) |
+| 2. Read sentences | `Item9_Sentences_Creole` | App-generated card with standard NIHSS sentences translated to Haitian Creole (training aid; not an official NINDS translation) |
+| 3. Describe picture | `Item9_Picture_English` | Same NIH/NINDS picture scene as English (see above) |
+
+Spanish continues to use the Mayo Clinic Proceedings figures (`Item9_Figure2`, `Item9_Figure3`, `Item9_Figure4`).
+
 ## Patient-language content (NIHSS prompts, consent script, back-translation)
 
 The Spanish, Haitian Creole, and (where applicable) English patient-facing strings — NIHSS prompts in `NIHSSStrokeScale/Models/NIHSS/NIHSSData.swift`, IV thrombolysis consent script in `NIHSSStrokeScale/Models/StrokeCode/StrokeCodeConsent.swift`, and the patient-speech back-translation tables in `NIHSSStrokeScale/Services/PatientResponseService.swift` — are **training aids, not certified medical translations**.
