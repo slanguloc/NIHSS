@@ -44,6 +44,9 @@ struct ContentView: View {
         .navigationTitle("NIHSS Assessment")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                PatientLanguagePicker(style: .toolbarIcon)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingHistory = true

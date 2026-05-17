@@ -48,7 +48,7 @@ private struct RootView: View {
                     showLanguageSelection = false
                 }
             } else {
-                HomeView(onChangeLanguage: { showLanguageSelection = true })
+                HomeView()
             }
         }
         .alert("Speech not available", isPresented: showNoVoiceAlert) {

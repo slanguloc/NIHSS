@@ -66,16 +66,29 @@ struct StrokeCodeDecisionView: View {
         }
     }
 
-    /// Shows medical-management guidance when an ischemic stroke is not
-    /// proceeding with IV thrombolysis or EVT.
+    /// Shows medical-management guidance whenever a (presumed) ischemic
+    /// stroke is not being actively treated with IV thrombolysis or EVT —
+    /// covering ischemic, equivocal, or still-pending imaging so trainees
+    /// see the antiplatelet / BP / secondary-prevention bundle for any
+    /// scenario where neither reperfusion therapy is moving forward.
+    /// Hidden only when imaging is hemorrhagic (separate ICH advisory)
+    /// or when either reperfusion therapy IS being given.
     private var shouldShowMedicalManagement: Bool {
-        guard state.imagingResult == .ischemic else { return false }
-        let ivtDeclined = state.thrombolyticChosen == .declined ||
-                          state.thrombolyticChosen == .deferred
-        let evtDeclined = state.evtChosen == .declined ||
-                          state.evtChosen == .deferred ||
-                          state.lvoStatus == .absent
-        return ivtDeclined && evtDeclined
+        if state.imagingResult == .hemorrhagic { return false }
+        let ivtGiven = state.thrombolyticChosen == .alteplase ||
+                       state.thrombolyticChosen == .tenecteplase
+        let evtGiven = state.evtChosen == .planned
+        return !ivtGiven && !evtGiven
+    }
+
+    /// True when the user has not yet committed to a non-treatment path on
+    /// either branch. Used to soften the medical-management card with a
+    /// "interim guidance" note instead of a strong "no IVT / EVT" header.
+    private var isMedicalManagementInterim: Bool {
+        let ivtUncommitted = state.thrombolyticChosen == .undecided
+        let evtUncommitted = state.evtChosen == .undecided ||
+                             state.lvoStatus == .unknown
+        return ivtUncommitted || evtUncommitted
     }
 
     // MARK: - Banner / footer
@@ -425,16 +438,27 @@ struct StrokeCodeDecisionView: View {
     // MARK: - Medical management (no IVT / no EVT)
 
     private var medicalManagementCard: some View {
-        card(title: "Medical management (no IVT / EVT)", systemImage: "cross.case") {
-            Text("Training guidance when an ischemic stroke patient is not proceeding to IV thrombolysis or EVT.")
+        let interim = isMedicalManagementInterim
+        let title = interim
+            ? "Medical management — interim guidance"
+            : "Medical management (no IVT / EVT)"
+        let subtitle = interim
+            ? "Suggested bundle while you work through the IVT / EVT branches. Commit to one of those branches above to refine this guidance."
+            : "Training guidance when a (presumed) ischemic stroke patient is not proceeding to IV thrombolysis or EVT."
+
+        return card(title: title, systemImage: "cross.case") {
+            Text(subtitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            ahaAsa2026RemindersBanner
 
             mgmtSection(
                 title: "Antiplatelet therapy",
                 bullets: [
                     "Aspirin 162–325 mg within 24–48 h once hemorrhage is excluded.",
-                    "Minor non-cardioembolic stroke (NIHSS ≤ 3 or high-risk TIA with ABCD² ≥ 4): DAPT — aspirin + clopidogrel for 21 days, then single agent.",
+                    "Minor non-cardioembolic stroke (NIHSS ≤ 3) or high-risk TIA (ABCD² ≥ 4): DAPT — aspirin + clopidogrel for 21 days, then single agent (CHANCE / POINT).",
+                    "Alternative DAPT (THALES, 2020): aspirin + ticagrelor 90 mg BID × 30 days in minor stroke / high-risk TIA when clopidogrel is unsuitable.",
                     "If IV thrombolysis was given: hold antiplatelets/anticoagulants for 24 h, then start once repeat imaging is clear."
                 ]
             )
@@ -442,16 +466,18 @@ struct StrokeCodeDecisionView: View {
             mgmtSection(
                 title: "Blood pressure",
                 bullets: [
-                    "If no IV thrombolysis: permissive HTN for first 24–48 h. Treat only if BP > 220/120 mmHg or evidence of end-organ injury (lower ~15% in first 24 h).",
-                    "After 48–72 h or if treated: target < 130/80 mmHg long-term (individualize).",
-                    "If thrombolytic given: keep BP ≤ 180/105 mmHg for 24 h."
+                    "If no IV thrombolysis: permissive HTN for the first 24–48 h. Treat only if BP > 220/120 mmHg or end-organ injury (lower ≈ 15% in the first 24 h).",
+                    "If thrombolytic given: keep BP ≤ 180/105 mmHg for 24 h.",
+                    "After 48–72 h or once stable: long-term target < 130/80 mmHg, individualize (AHA/ASA secondary-prevention)."
                 ]
             )
 
             mgmtSection(
-                title: "Statin",
+                title: "Lipids / statin (2026 update)",
                 bullets: [
-                    "Start high-intensity statin (atorvastatin 40–80 mg or rosuvastatin 20–40 mg) unless contraindicated."
+                    "Start high-intensity statin (atorvastatin 40–80 mg or rosuvastatin 20–40 mg) unless contraindicated.",
+                    "LDL-C goal < 70 mg/dL for atherosclerotic stroke (AHA/ASA secondary prevention).",
+                    "If LDL-C above goal on max statin: add ezetimibe; consider a PCSK9 inhibitor for very-high-risk patients."
                 ]
             )
 
@@ -459,15 +485,16 @@ struct StrokeCodeDecisionView: View {
                 title: "Glycemic management",
                 bullets: [
                     "Target glucose 140–180 mg/dL during hospitalization.",
-                    "Treat hypoglycemia (< 60 mg/dL) promptly."
+                    "Treat hypoglycemia (< 60 mg/dL) promptly.",
+                    "If T2DM with established ASCVD: consider an SGLT2 inhibitor or GLP-1 RA for cardiovascular risk reduction (outpatient)."
                 ]
             )
 
             mgmtSection(
                 title: "DVT prophylaxis",
                 bullets: [
-                    "Intermittent pneumatic compression on admission for non-ambulatory patients.",
-                    "Add prophylactic-dose subcutaneous heparin/LMWH after 24 h if stable (and ≥ 24 h after thrombolysis)."
+                    "Intermittent pneumatic compression on admission for non-ambulatory patients (CLOTS-3).",
+                    "Add prophylactic-dose subcutaneous heparin / LMWH after 24 h if stable (and ≥ 24 h after thrombolysis)."
                 ]
             )
 
@@ -475,27 +502,39 @@ struct StrokeCodeDecisionView: View {
                 title: "Bedside care",
                 bullets: [
                     "Dysphagia screen before any oral intake (food, fluids, or medications).",
-                    "Telemetry / continuous cardiac monitoring for ≥ 24 h.",
-                    "Early mobilization and PT/OT/speech consults once stable."
+                    "Telemetry / continuous cardiac monitoring for ≥ 24 h (longer if cryptogenic and AF suspected).",
+                    "Head-of-bed flat vs. 30°: individualize (HeadPoST showed no benefit either way); flat may be considered short-term for LVO awaiting EVT.",
+                    "Early mobilization within 24–48 h once stable; PT / OT / speech consults."
                 ]
             )
 
             mgmtSection(
                 title: "Etiologic workup",
                 bullets: [
-                    "Vessel imaging (carotid US/CTA/MRA) if not yet done.",
-                    "Echocardiogram (TTE; consider TEE for cardioembolic source).",
-                    "≥ 24 h cardiac monitoring; prolonged outpatient monitoring if cryptogenic.",
-                    "Fasting lipid panel and HbA1c."
+                    "Vessel imaging (carotid US / CTA / MRA) if not yet done.",
+                    "Echocardiogram (TTE; consider TEE / bubble study for cardioembolic source or suspected PFO).",
+                    "≥ 24 h inpatient cardiac monitoring; prolonged outpatient monitoring (implantable loop recorder) if cryptogenic (CRYSTAL-AF / STROKE-AF / PER-DIEM).",
+                    "Fasting lipid panel and HbA1c.",
+                    "PFO closure: consider in cryptogenic embolic stroke, age < 60, after stroke / cardiology review (RESPECT, CLOSE, REDUCE)."
                 ]
             )
 
             mgmtSection(
                 title: "Secondary prevention",
                 bullets: [
-                    "Anticoagulation if atrial fibrillation or other indication (timing per protocol; avoid for 24 h after thrombolysis).",
-                    "Smoking cessation, glycemic and lipid control, lifestyle counseling.",
-                    "Stroke / rehab planning before discharge."
+                    "Atrial fibrillation: start anticoagulation per protocol — typical timing is 1-3-6-12 days based on infarct size; avoid for 24 h after thrombolysis.",
+                    "Smoking cessation; lifestyle counseling (Mediterranean / DASH diet, regular aerobic activity, weight management).",
+                    "Symptomatic carotid stenosis 70–99%: CEA or CAS within 2 weeks if appropriate."
+                ]
+            )
+
+            mgmtSection(
+                title: "Post-stroke screening (often missed)",
+                bullets: [
+                    "Post-stroke depression screen (PHQ-9 or equivalent) before discharge and at follow-up.",
+                    "Cognitive screen (MoCA) once medically stable.",
+                    "Sleep-disordered breathing screen (STOP-BANG / formal sleep study if indicated).",
+                    "Stroke / rehab planning before discharge; provide stroke-education materials and a written secondary-prevention plan."
                 ]
             )
 
@@ -504,6 +543,31 @@ struct StrokeCodeDecisionView: View {
                 .foregroundStyle(.orange)
                 .padding(.top, 4)
         }
+    }
+
+    /// Quick "what's emphasized in 2026" reminders banner.
+    private var ahaAsa2026RemindersBanner: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("AHA/ASA 2026 emphasis", systemImage: "sparkles")
+                .font(.caption.bold())
+                .foregroundStyle(.purple)
+            ForEach([
+                "LDL-C goal < 70 mg/dL for atherosclerotic stroke; add ezetimibe / PCSK9i if not met.",
+                "Consider SGLT2i / GLP-1 RA in T2DM with ASCVD for outpatient cardiovascular risk reduction.",
+                "Screen for post-stroke depression, cognitive impairment, and sleep-disordered breathing before discharge.",
+                "For cryptogenic stroke: prolonged rhythm monitoring (ILR) and consider PFO closure if age < 60.",
+                "DAPT alternative: aspirin + ticagrelor (THALES) when clopidogrel unsuitable."
+            ], id: \.self) { item in
+                Text("• \(item)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.purple.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func mgmtSection(title: String, bullets: [String]) -> some View {

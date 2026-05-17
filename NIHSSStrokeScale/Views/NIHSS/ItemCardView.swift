@@ -11,6 +11,32 @@ private struct Item9Expanded: Identifiable {
     var id: Int { index }
 }
 
+/// Source line shown under Item 9 figures (language-specific images).
+private struct Item9SourceAttribution: View {
+    let language: AppLanguage
+    /// When true, styles for the full-screen black overlay.
+    var onDarkBackground: Bool = false
+
+    private static let nihStrokeScaleURL = URL(string: "https://www.stroke.nih.gov")!
+
+    var body: some View {
+        Group {
+            if language == .english {
+                Link(destination: Self.nihStrokeScaleURL) {
+                    Text("Source: NIH Stroke Scale (NINDS) — stroke.nih.gov")
+                }
+            } else {
+                Text("Source: Mayo Clinic Proc 2006;81:476-480")
+            }
+        }
+        .font(.caption2)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .foregroundStyle(onDarkBackground ? Color.white.opacity(0.75) : Color.secondary)
+        .tint(onDarkBackground ? .orange : .accentColor)
+    }
+}
+
 struct ItemCardView: View {
     @EnvironmentObject var spanishSpeech: SpanishSpeechService
     @EnvironmentObject var languageStore: LanguageStore
@@ -94,9 +120,11 @@ struct ItemCardView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(Array(step.patientPhrasesToSpeak(language: languageStore.selectedLanguage).enumerated()), id: \.offset) { index, phrase in
-                        let hasImage = step.item.id == "9",
-                            imageNames = step.item.phraseImageNames(for: languageStore.selectedLanguage),
-                            imageName = (imageNames != nil && index < imageNames!.count && !imageNames![index].isEmpty) ? imageNames![index] : nil
+                        let imageNames = step.item.phraseImageNames(for: languageStore.selectedLanguage)
+                        let imageName: String? = {
+                            guard let imageNames, index < imageNames.count, !imageNames[index].isEmpty else { return nil }
+                            return imageNames[index]
+                        }()
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .top, spacing: 6) {
                                 if step.patientPhrasesToSpeak(language: languageStore.selectedLanguage).count > 1 {
@@ -121,41 +149,45 @@ struct ItemCardView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            // Item 9: show figure image below each prompt (Figure 2, 3, 4 from Mayo PDF)
+                            // Item 9: figure image below each prompt (NIH/NINDS for English; Mayo for Spanish)
                             if let assetName = imageName {
-                                ZStack {
-                                    Color.gray.opacity(0.08)
-                                    Image(assetName)
-                                        .resizable()
-                                        .scaledToFit()
-                                    if UIImage(named: assetName) == nil {
-                                        VStack(spacing: 8) {
-                                            Image(systemName: "photo")
-                                                .font(.system(size: 32))
-                                                .foregroundStyle(.secondary)
-                                            Text("Add \(assetName) to Assets")
-                                                .font(.caption2)
-                                                .foregroundStyle(.tertiary)
+                                VStack(spacing: 4) {
+                                    ZStack {
+                                        Color.gray.opacity(0.08)
+                                        Image(assetName)
+                                            .resizable()
+                                            .scaledToFit()
+                                        if UIImage(named: assetName) == nil {
+                                            VStack(spacing: 8) {
+                                                Image(systemName: "photo")
+                                                    .font(.system(size: 32))
+                                                    .foregroundStyle(.secondary)
+                                                Text("Add \(assetName) to Assets")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                            .padding()
                                         }
-                                        .padding()
                                     }
-                                }
-                                .frame(minHeight: 140, maxHeight: 220)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
-                                .overlay(alignment: .topTrailing) {
-                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .padding(8)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    item9Expanded = Item9Expanded(index: index)
+                                    .frame(minHeight: 140, maxHeight: 220)
+                                    .frame(maxWidth: .infinity)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .overlay(alignment: .topTrailing) {
+                                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .padding(8)
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        item9Expanded = Item9Expanded(index: index)
+                                    }
+
+                                    Item9SourceAttribution(language: languageStore.selectedLanguage)
                                 }
                             }
                             // Item 9 subsections 1 and 3: speech-to-text capture
@@ -357,16 +389,14 @@ struct ItemCardView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 4)
-                .padding(.bottom, 4)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
                 .frame(maxWidth: .infinity)
-                .background(Color(.systemBackground))
-                .ignoresSafeArea(edges: .bottom)
+                .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
             }
         }
         .simultaneousGesture(swipeGesture)
-        .background(Color(.systemBackground))
-        .ignoresSafeArea(edges: .top)
+        .background(Color(.systemBackground).ignoresSafeArea(edges: .top))
         .fullScreenCover(item: $item9Expanded) { expanded in
             let idx = expanded.index
             let patientPhrases = step.patientPhrasesToSpeak(language: languageStore.selectedLanguage)
@@ -450,9 +480,10 @@ private struct Item9FullScreenView: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal)
-                        Text("Source: Mayo Clinic Proc 2006;81:476-480")
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.7))
+                        Item9SourceAttribution(
+                            language: languageStore.selectedLanguage,
+                            onDarkBackground: true
+                        )
                     }
                     .padding(.bottom, showRecordButton ? 8 : 16)
                 }

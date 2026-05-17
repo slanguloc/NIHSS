@@ -413,7 +413,7 @@ final class PatientResponseService: NSObject, ObservableObject {
             "mwen wè": "I see", "wè": "see", "se": "is", "gen": "there is", "yon": "a", "la": "the",
             "ak": "and", "avèk": "with", "nan": "in", "pou": "for", "trè": "very",
             "gran": "big", "piti": "small", "wouj": "red", "ble": "blue", "blan": "white", "nwa": "black", "vèt": "green", "jòn": "yellow",
-            "ane": "year", "lane": "years", "gen": "there is", "mwen": "I",
+            "ane": "year", "lane": "years", "mwen": "I",
             "menm": "same", "bò": "side", "doulè": "pain", "santi": "feel", "manyen": "touch", "po": "skin",
             "toulede": "both", "toule": "both", "tout": "all",
         ]

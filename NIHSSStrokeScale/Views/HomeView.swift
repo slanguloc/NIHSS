@@ -14,13 +14,8 @@
 import SwiftUI
 
 struct HomeView: View {
-    @EnvironmentObject var languageStore: LanguageStore
     @EnvironmentObject var strokeCodeStore: StrokeCodeStore
 
-    /// Set by `RootView` to swap back to the language selection screen.
-    var onChangeLanguage: () -> Void = {}
-
-    /// Module the user has chosen to enter from Home.
     enum Module: Hashable {
         case nihss
         case strokeCode
@@ -31,53 +26,55 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(spacing: 16) {
-                    header
-                    moduleCard(
-                        title: "NIHSS Assessment",
-                        subtitle: "Stepwise NIH Stroke Scale with multilingual patient prompts.",
-                        bullets: [
-                            "All 11 NIHSS items in order",
-                            "Provider instructions + patient prompts",
-                            "One-tap scoring with running total",
-                            "Encounter history (encrypted on-device)"
-                        ],
-                        icon: "brain",
-                        tint: .red,
-                        cta: "Open NIHSS",
-                        action: { path.append(.nihss) }
-                    )
+                VStack(alignment: .leading, spacing: 20) {
+                    welcomeHero
 
-                    moduleCard(
-                        title: "Stroke Code Timer",
-                        subtitle: "Simulated stroke-code drills with timeline, decisions, dosing, and a case bank.",
-                        bullets: [
-                            "Milestones vs. Target: Stroke time goals",
-                            "Decision support: imaging, IVT, LVO, EVT",
-                            "Weight-based alteplase / tenecteplase dosing",
-                            "Educator case bank with debrief"
-                        ],
-                        icon: "stopwatch",
-                        tint: .blue,
-                        cta: strokeCodeStore.active == nil ? "Open Stroke Code" : "Resume Stroke Code (LIVE)",
-                        ctaTint: strokeCodeStore.active == nil ? .blue : .red,
-                        action: { path.append(.strokeCode) }
-                    )
+                    PatientLanguagePicker(style: .card)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        sectionHeader("Training modules")
+                        moduleCard(
+                            title: "NIHSS Assessment",
+                            summary: "Stepwise NIH Stroke Scale with multilingual patient prompts.",
+                            highlights: [
+                                "All 11 items in order",
+                                "TTS + optional speech capture",
+                                "Encrypted encounter history"
+                            ],
+                            icon: "brain",
+                            tint: .red,
+                            cta: "Open NIHSS",
+                            action: { path.append(.nihss) }
+                        )
+                        moduleCard(
+                            title: "Stroke Code Timer",
+                            summary: "Simulated stroke-code drills with timeline, decisions, and dosing.",
+                            highlights: [
+                                "Target: Stroke milestones",
+                                "IVT / EVT decision support",
+                                "Educator case bank"
+                            ],
+                            icon: "stopwatch",
+                            tint: .blue,
+                            cta: strokeCodeStore.active == nil ? "Open Stroke Code" : "Resume (LIVE)",
+                            ctaTint: strokeCodeStore.active == nil ? .blue : .red,
+                            showLiveBadge: strokeCodeStore.active != nil,
+                            action: { path.append(.strokeCode) }
+                        )
+                    }
 
                     disclaimerCard
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
             }
+            .scrollIndicators(.hidden)
             .navigationTitle("Zysquy")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        onChangeLanguage()
-                    } label: {
-                        Label(languageStore.selectedLanguage.displayName, systemImage: "globe")
-                    }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    PatientLanguagePicker(style: .toolbarIcon)
                 }
             }
             .navigationDestination(for: Module.self) { module in
@@ -91,75 +88,96 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Welcome
 
-    private var header: some View {
-        VStack(spacing: 6) {
+    private var welcomeHero: some View {
+        HStack(alignment: .center, spacing: 14) {
             Image(systemName: "brain.head.profile")
-                .font(.system(size: 56))
+                .font(.system(size: 44))
                 .foregroundStyle(.red.gradient)
-            Text("Zysquy")
-                .font(.title.bold())
-            Text("Stroke training — NIHSS and stroke-code workflow")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Text("Patient language: \(languageStore.selectedLanguage.displayName)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                .frame(width: 52, height: 52)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Stroke training")
+                    .font(.title3.bold())
+                Text("NIHSS assessment and simulated stroke-code workflow for education and drills.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Section header
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption.bold())
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
     }
 
     // MARK: - Module card
 
     private func moduleCard(title: String,
-                            subtitle: String,
-                            bullets: [String],
+                            summary: String,
+                            highlights: [String],
                             icon: String,
                             tint: Color,
                             cta: String,
                             ctaTint: Color? = nil,
+                            showLiveBadge: Bool = false,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: icon)
-                        .font(.system(size: 36))
+                        .font(.system(size: 32))
                         .foregroundStyle(tint.gradient)
-                        .frame(width: 48)
+                        .frame(width: 44, height: 44)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(.title3.bold())
-                            .foregroundStyle(.primary)
-                        Text(subtitle)
+                        HStack(spacing: 6) {
+                            Text(title)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            if showLiveBadge {
+                                Text("LIVE")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red.opacity(0.15))
+                                    .foregroundStyle(.red)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        Text(summary)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.leading)
                     }
                     Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(bullets, id: \.self) { b in
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(tint)
-                            Text(b)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.leading)
-                        }
+                HStack(spacing: 6) {
+                    ForEach(highlights, id: \.self) { tag in
+                        Text(tag)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(.tertiarySystemFill))
+                            .clipShape(Capsule())
                     }
                 }
 
                 HStack {
                     Spacer()
-                    Label(cta, systemImage: "chevron.right")
+                    Text(cta)
                         .font(.subheadline.bold())
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background((ctaTint ?? tint).opacity(0.15))
                         .foregroundStyle(ctaTint ?? tint)

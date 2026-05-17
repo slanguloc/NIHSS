@@ -36,6 +36,7 @@
 		A1000027 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000027 /* HomeView.swift */; };
 		A1000028 /* NIHSSFromStrokeCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000028 /* NIHSSFromStrokeCodeView.swift */; };
 		A1000029 /* StrokeCodeConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000029 /* StrokeCodeConsent.swift */; };
+		A1000030 /* PatientLanguagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* PatientLanguagePicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +70,7 @@
 		A2000027 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A2000028 /* NIHSSFromStrokeCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIHSSFromStrokeCodeView.swift; sourceTree = "<group>"; };
 		A2000029 /* StrokeCodeConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeCodeConsent.swift; sourceTree = "<group>"; };
+		A2000030 /* PatientLanguagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientLanguagePicker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,6 +117,7 @@
 			children = (
 				A2000027 /* HomeView.swift */,
 				A2000016 /* LanguageSelectionView.swift */,
+				A2000030 /* PatientLanguagePicker.swift */,
 				A4000010 /* NIHSS */,
 				A4000011 /* StrokeCode */,
 			);
@@ -287,6 +290,7 @@
 				A1000027 /* HomeView.swift in Sources */,
 				A1000028 /* NIHSSFromStrokeCodeView.swift in Sources */,
 				A1000029 /* StrokeCodeConsent.swift in Sources */,
+				A1000030 /* PatientLanguagePicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,6 +423,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "To capture and transcribe the patient's response for the evaluator.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "To transcribe the patient's spoken response and translate it to English for the evaluator.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
@@ -452,6 +457,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "To capture and transcribe the patient's response for the evaluator.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "To transcribe the patient's spoken response and translate it to English for the evaluator.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;

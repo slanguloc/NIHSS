@@ -61,6 +61,9 @@ struct StrokeCodeTimerView: View {
         .navigationTitle("Stroke Code Timer")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                PatientLanguagePicker(style: .toolbarIcon)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showHistory = true

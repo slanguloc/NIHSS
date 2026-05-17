@@ -22,31 +22,35 @@ struct AssessmentFlowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Nav bar at top of screen with no gap: background extends to top, content uses device safe area only
+            // Top nav bar. The white background extends edge-to-edge (under the
+            // status bar / Dynamic Island via `ignoresSafeArea` on the background
+            // ONLY), while the content itself respects the safe area and adds a
+            // small buffer so the title is not flush against the Dynamic Island.
             VStack(spacing: 0) {
-                HStack {
+                HStack(spacing: 8) {
                     Button {
                         dismiss()
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.body.weight(.semibold))
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                     Text("Zysquy")
                         .font(.headline)
-                    Spacer()
+                    Spacer(minLength: 0)
+                    PatientLanguagePicker(style: .toolbarIcon)
                     Text("Total: \(state.totalScore)")
                         .font(.subheadline.monospacedDigit().bold())
+                        .frame(minWidth: 52, alignment: .trailing)
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 38)
-                .padding(.bottom, 4)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
 
                 progressBar
             }
             .frame(maxWidth: .infinity, alignment: .top)
-            .background(Color(.systemBackground))
-            .ignoresSafeArea(edges: .top)
+            .background(Color(.systemBackground).ignoresSafeArea(edges: .top))
 
             if let step = currentStep {
                 ItemCardView(
@@ -66,8 +70,7 @@ struct AssessmentFlowView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
-        .ignoresSafeArea(edges: [.top, .bottom])
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
         .sheet(isPresented: $showSummary) {
             SummaryView(state: state)
