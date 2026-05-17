@@ -81,6 +81,125 @@ enum LvoStatus: String, Codable, CaseIterable, Equatable {
     }
 }
 
+/// Occlusion site granularity (when LVO is present). Drives the per-site
+/// EVT evidence class shown to the trainee. Training only.
+enum LvoSite: String, Codable, CaseIterable, Equatable {
+    case unknown
+    case icaTerminus
+    case m1
+    case m2
+    case m3
+    case basilar
+    case pca
+    case aca
+    case tandem
+    case other
+
+    var label: String {
+        switch self {
+        case .unknown:      return "Site not specified"
+        case .icaTerminus:  return "ICA terminus"
+        case .m1:           return "MCA – M1"
+        case .m2:           return "MCA – M2"
+        case .m3:           return "MCA – M3 / distal"
+        case .basilar:      return "Basilar artery"
+        case .pca:          return "PCA"
+        case .aca:          return "ACA"
+        case .tandem:       return "Tandem (cervical ICA + intracranial)"
+        case .other:        return "Other / VA"
+        }
+    }
+
+    /// AHA/ASA-style evidence class for EVT at this site (training-only
+    /// summary; the 2026 guideline elevated several class-IIb items).
+    var evidenceClass: EvtEvidenceClass {
+        switch self {
+        case .icaTerminus, .m1, .basilar, .tandem: return .classI
+        case .m2:                                   return .classIIa
+        case .m3, .pca:                             return .classIIb
+        case .aca, .other:                          return .insufficient
+        case .unknown:                              return .notSpecified
+        }
+    }
+
+    /// One-line training note tailored to the site.
+    var trainingNote: String {
+        switch self {
+        case .unknown:
+            return "Specify the occlusion site to see the corresponding EVT evidence class."
+        case .icaTerminus:
+            return "ICA-terminus occlusion — strong EVT indication (HERMES, Class I)."
+        case .m1:
+            return "M1 occlusion — strongest evidence base for EVT (HERMES, Class I)."
+        case .m2:
+            return "M2 occlusion — EVT is reasonable, especially for proximal / dominant M2 with disabling deficit (Class IIa)."
+        case .m3:
+            return "M3 / distal MeVO — EVT may be considered (Class IIb). Recent trials (ESCAPE-MeVO, DISTAL, DISCOUNT) showed mixed benefit; weigh risks."
+        case .basilar:
+            return "Basilar occlusion — EVT improves outcomes within 24 h in selected patients (BAOCHE, ATTENTION). Use NIHSS ≥ 10 threshold."
+        case .pca:
+            return "Posterior cerebral artery — emerging evidence; EVT may be considered for disabling deficits (Class IIb)."
+        case .aca:
+            return "Anterior cerebral artery — insufficient RCT data; individualize."
+        case .tandem:
+            return "Tandem cervical ICA + intracranial — EVT reasonable; acute cervical stenting decision is individualized."
+        case .other:
+            return "Other / VA occlusion — insufficient evidence base; individualize via stroke / neuro-IR consult."
+        }
+    }
+}
+
+/// Evidence-class badge used to communicate the strength of recommendation
+/// for EVT at the captured occlusion site. Training-only.
+enum EvtEvidenceClass: String, Codable, Equatable {
+    case classI
+    case classIIa
+    case classIIb
+    case insufficient
+    case notSpecified
+
+    var label: String {
+        switch self {
+        case .classI:        return "Class I"
+        case .classIIa:      return "Class IIa"
+        case .classIIb:      return "Class IIb"
+        case .insufficient:  return "Insufficient evidence"
+        case .notSpecified:  return "—"
+        }
+    }
+}
+
+/// Pre-stroke baseline functional status (modified Rankin Scale buckets).
+/// Used to surface EVT candidacy nuance per 2026 AHA/ASA.
+enum BaselineMRS: String, Codable, CaseIterable, Equatable {
+    case unknown
+    case mrs0_1
+    case mrs2
+    case mrs3plus
+
+    var label: String {
+        switch self {
+        case .unknown:  return "Not captured"
+        case .mrs0_1:   return "mRS 0–1 (independent)"
+        case .mrs2:     return "mRS 2 (slight disability)"
+        case .mrs3plus: return "mRS ≥ 3 (moderate or worse)"
+        }
+    }
+
+    var evtNote: String {
+        switch self {
+        case .unknown:
+            return "Capture baseline mRS to refine EVT candidacy."
+        case .mrs0_1:
+            return "Standard EVT candidacy (independent at baseline)."
+        case .mrs2:
+            return "EVT reasonable in selected patients (Class IIa/IIb per 2026 update). Weigh ASCVD burden and goals of care."
+        case .mrs3plus:
+            return "EVT generally NOT recommended outside select cases / shared decision-making. Discuss goals of care."
+        }
+    }
+}
+
 /// Captured thrombolytic choice (training).
 enum ThrombolyticChoice: String, Codable, CaseIterable, Equatable {
     case undecided
@@ -264,6 +383,16 @@ struct ExtendedWindowState: Codable, Equatable {
 struct DecisionState: Codable, Equatable {
     var imagingResult: ImagingResult = .pending
     var lvoStatus: LvoStatus = .unknown
+
+    /// Occlusion site granularity when LVO is present. Optional for
+    /// backward compatibility with older saves; treated as `.unknown`
+    /// when nil. Used to surface site-specific EVT evidence class.
+    var lvoSite: LvoSite? = nil
+
+    /// Pre-stroke baseline functional status (mRS bucket). Optional for
+    /// backward compatibility with older saves; treated as `.unknown`
+    /// when nil. Used to surface EVT candidacy nuance.
+    var baselineMRS: BaselineMRS? = nil
 
     /// Criterion id → answer, for IV thrombolysis checklist.
     var ivtCriteria: [String: DecisionAnswer] = [:]

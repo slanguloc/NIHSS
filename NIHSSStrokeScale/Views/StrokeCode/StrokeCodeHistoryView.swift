@@ -332,6 +332,15 @@ struct StrokeCodeSessionSummaryView: View {
         Section("Decisions (training)") {
             LabeledContent("Imaging", value: d.imagingResult.label)
             LabeledContent("LVO", value: d.lvoStatus.label)
+            if d.lvoStatus == .present, let site = d.lvoSite, site != .unknown {
+                LabeledContent(
+                    "Occlusion site",
+                    value: "\(site.label) — \(site.evidenceClass.label)"
+                )
+            }
+            if let mrs = d.baselineMRS, mrs != .unknown {
+                LabeledContent("Baseline mRS", value: mrs.label)
+            }
             LabeledContent("Thrombolytic", value: d.thrombolyticChosen.label)
             LabeledContent("EVT", value: d.evtChosen.label)
 

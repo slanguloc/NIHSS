@@ -327,8 +327,51 @@ struct StrokeCodeDecisionView: View {
 
     private var evtCard: some View {
         let verdict = state.evtVerdict()
+        let site = state.lvoSite ?? .unknown
+        let mrs = state.baselineMRS ?? .unknown
         return card(title: "EVT eligibility", systemImage: "scissors") {
             verdictBadge(verdict)
+
+            // Occlusion-site picker (training): drives the per-site
+            // evidence-class badge below.
+            HStack {
+                Text("Occlusion site")
+                    .font(.subheadline)
+                Spacer()
+                Picker("Occlusion site", selection: lvoSiteBinding) {
+                    ForEach(LvoSite.allCases, id: \.self) { s in
+                        Text(s.label).tag(s)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+            evidenceBadge(for: site)
+            Text(site.trainingNote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider().padding(.vertical, 2)
+
+            // Baseline mRS picker (training): three buckets aligned with
+            // the 2026 update emphasis on functional status nuance.
+            HStack {
+                Text("Baseline mRS")
+                    .font(.subheadline)
+                Spacer()
+                Picker("Baseline mRS", selection: baselineMrsBinding) {
+                    ForEach(BaselineMRS.allCases, id: \.self) { m in
+                        Text(m.label).tag(m)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+            Text(mrs.evtNote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider().padding(.vertical, 2)
 
             ForEach(StrokeCodeDecisionCatalog.evt) { c in
                 criterionRow(
@@ -341,6 +384,8 @@ struct StrokeCodeDecisionView: View {
             }
 
             failedList(verdict)
+
+            evtConsiderations2026
 
             HStack {
                 Text("Plan (training):")
@@ -357,6 +402,63 @@ struct StrokeCodeDecisionView: View {
             }
             .padding(.top, 4)
         }
+    }
+
+    // MARK: - EVT pickers + considerations helpers
+
+    /// Pill that summarizes the evidence class for the chosen occlusion site.
+    private func evidenceBadge(for site: LvoSite) -> some View {
+        let evidence = site.evidenceClass
+        let tint: Color = {
+            switch evidence {
+            case .classI:        return .green
+            case .classIIa:      return .blue
+            case .classIIb:      return .orange
+            case .insufficient:  return .gray
+            case .notSpecified:  return .gray
+            }
+        }()
+        return HStack(spacing: 4) {
+            Image(systemName: "stethoscope")
+                .font(.caption2)
+            Text("EVT evidence: \(evidence.label)")
+                .font(.caption.bold())
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(tint.opacity(0.18))
+        .foregroundStyle(tint)
+        .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 2026-flavored EVT considerations as a compact bullet list. Training
+    /// notes only — does not affect the checklist verdict.
+    private var evtConsiderations2026: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("EVT considerations (2026, training)", systemImage: "sparkles")
+                .font(.caption.bold())
+                .foregroundStyle(.purple)
+            ForEach([
+                "Low NIHSS (< 6) with disabling deficit (e.g., dominant-hemisphere aphasia, hemianopia) — EVT is reasonable (Class IIb); individualize.",
+                "Very high NIHSS (> 25) with large core — EVT may be considered per SELECT2 / RESCUE-Japan LIMIT / ANGEL-ASPECT.",
+                "IV thrombolysis before EVT — if IVT-eligible, give it; do NOT skip IVT to expedite EVT (DIRECT-MT / SKIP did not displace this).",
+                "Age > 80 — not a disqualifier; baseline functional status drives candidacy.",
+                "Tandem cervical ICA + intracranial — EVT reasonable; acute cervical stenting is individualized.",
+                "Anesthesia choice (GA vs conscious sedation) — Class IIa; institution / patient-specific (SIESTA, GOLIATH, AnStroke).",
+                "Time > 24 h from LKW — not currently recommended outside trial (SELECT-LATE ongoing).",
+                "Pediatric stroke (< 18) — first formal pediatric recommendations in 2026; involve pediatric stroke team."
+            ], id: \.self) { item in
+                Text("• \(item)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.purple.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Patient details card
@@ -1480,6 +1582,20 @@ struct StrokeCodeDecisionView: View {
                                           note: "Auto: thrombolytic decision — \(newValue.label)")
                 }
             }
+        )
+    }
+
+    private var lvoSiteBinding: Binding<LvoSite> {
+        Binding(
+            get: { state.lvoSite ?? .unknown },
+            set: { newValue in store.mutateDecisions { $0.lvoSite = newValue } }
+        )
+    }
+
+    private var baselineMrsBinding: Binding<BaselineMRS> {
+        Binding(
+            get: { state.baselineMRS ?? .unknown },
+            set: { newValue in store.mutateDecisions { $0.baselineMRS = newValue } }
         )
     }
 

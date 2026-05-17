@@ -288,7 +288,7 @@ enum NIHSSData {
                 "Right, left, or both sides?"
             ]
             case "9": return ["Name these objects:", "Read these sentences:", "Look at this picture and describe what you see."]
-            case "10": return ["Repeat these words aloud:", "Mama", "Tip-top", "Fifty-fifty", "Thanks", "Hiccup", "Baseball batter"]
+            case "10": return ["Repeat these words aloud:", "mama", "tip-top", "fifty-fifty", "thanks", "huckleberry", "baseball player"]
             case "11": return [
                 "When I touch you, tell me if it's the left side, right side, or both.",
                 "When I show you fingers, tell me how many you see and on which side (left, right, or both)."
