@@ -385,6 +385,7 @@ final class StrokeCodeStore: ObservableObject {
         )
         isEditingExisting = false
         editingOriginal = nil
+        applyIVTTimeWindowHintsIfApplicable()
     }
 
     func cancelActive() {
@@ -422,6 +423,9 @@ final class StrokeCodeStore: ObservableObject {
         s.events.removeAll(where: { $0.milestoneId == milestoneId })
         s.events.append(StrokeCodeEvent(milestoneId: milestoneId, timestamp: date, note: note))
         active = s
+        if milestoneId == "lkw" {
+            applyIVTTimeWindowHintsIfApplicable()
+        }
     }
 
     /// Captures `milestoneId` only if it hasn't been captured yet. Returns
@@ -443,6 +447,9 @@ final class StrokeCodeStore: ObservableObject {
         guard var s = active else { return }
         s.events.removeAll(where: { $0.milestoneId == milestoneId })
         active = s
+        if milestoneId == "lkw" {
+            mutateDecisions { $0.ivtCriteria["ivt.windowLKW45h"] = .unknown }
+        }
     }
 
     /// Updates the free-text notes on the active session.
@@ -468,6 +475,21 @@ final class StrokeCodeStore: ObservableObject {
         mutate(&d)
         s.decisions = d
         active = s
+    }
+
+    /// After extended-window EVT toggles change, pre-fill related EVT checklist
+    /// answers when still unknown (training aid only).
+    func applyExtendedWindowEVTHintsIfApplicable() {
+        guard let lkw = active?.lastKnownWell else { return }
+        let minutesSinceLKW = Date().timeIntervalSince(lkw) / 60.0
+        mutateDecisions { $0.applyExtendedWindowEVTChecklistHints(minutesSinceLKW: minutesSinceLKW) }
+    }
+
+    /// Auto-fills IVT “within 4.5 h / extended window” from Timeline LKW when unanswered.
+    func applyIVTTimeWindowHintsIfApplicable() {
+        guard let lkw = active?.lastKnownWell else { return }
+        let minutesSinceLKW = Date().timeIntervalSince(lkw) / 60.0
+        mutateDecisions { $0.applyIVTTimeWindowFromLKW(minutesSinceLKW: minutesSinceLKW) }
     }
 
     // MARK: Persistence

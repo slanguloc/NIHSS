@@ -377,7 +377,10 @@ struct StrokeCodeSessionSummaryView: View {
 
             verdictRow(label: "IVT verdict", verdict: d.ivtVerdict())
             if d.lvoStatus == .present {
-                verdictRow(label: "EVT verdict", verdict: d.evtVerdict())
+                let evtMins = session.lastKnownWell.map {
+                    (session.completedAt ?? Date()).timeIntervalSince($0) / 60.0
+                }
+                verdictRow(label: "EVT verdict", verdict: d.evtVerdict(minutesSinceLKW: evtMins))
             }
         }
     }

@@ -28,6 +28,8 @@ final class PatientResponseService: NSObject, ObservableObject {
     @Published var response11Translated = ""
     @Published var response3Transcribed = ""
     @Published var response3Translated = ""
+    @Published var responseIvtConsentTranscribed = ""
+    @Published var responseIvtConsentTranslated = ""
     @Published var errorMessage: String?
     @Published var authorizationStatus: SFSpeechRecognizerAuthorizationStatus = .notDetermined
 
@@ -161,7 +163,11 @@ final class PatientResponseService: NSObject, ObservableObject {
                 if let result = result {
                     self.transcribedText = result.bestTranscription.formattedString
                     if result.isFinal, !result.bestTranscription.formattedString.isEmpty {
-                        let translated = self.translateToEnglish(result.bestTranscription.formattedString, from: self.recordingLanguage)
+                        let translated = self.translateToEnglish(
+                            result.bestTranscription.formattedString,
+                            from: self.recordingLanguage,
+                            recordingKey: self.recordingKey
+                        )
                         self.saveResponse(transcribed: result.bestTranscription.formattedString, translated: translated)
                     }
                 }
@@ -183,7 +189,7 @@ final class PatientResponseService: NSObject, ObservableObject {
         audioEngine = nil
         isRecording = false
         if !transcribedText.isEmpty {
-            let translated = translateToEnglish(transcribedText, from: recordingLanguage)
+            let translated = translateToEnglish(transcribedText, from: recordingLanguage, recordingKey: recordingKey)
             saveResponse(transcribed: transcribedText, translated: translated)
         }
         recordingQuestionIndex = nil
@@ -216,8 +222,28 @@ final class PatientResponseService: NSObject, ObservableObject {
             } else if key == "3" {
                 response3Transcribed = transcribed
                 response3Translated = translated
+            } else if key == "ivt-consent" {
+                responseIvtConsentTranscribed = transcribed
+                responseIvtConsentTranslated = translated
             }
         }
+    }
+
+    func responseForIvtConsent() -> (transcribed: String, translated: String) {
+        (responseIvtConsentTranscribed, responseIvtConsentTranslated)
+    }
+
+    func isRecordingIvtConsent() -> Bool {
+        recordingKey == "ivt-consent"
+    }
+
+    /// Parsed training interpretation from the last consent recording (English summary line).
+    var ivtConsentInterpretation: IvtConsentInterpretation {
+        let translated = responseIvtConsentTranslated.lowercased()
+        if translated.contains("agrees to iv thrombolysis") { return .agrees }
+        if translated.contains("declines iv thrombolysis") { return .refuses }
+        if translated.contains("uncertain") || translated.contains("more discussion") { return .uncertain }
+        return .unclear
     }
 
     func responseForItem9(subsectionIndex: Int) -> (transcribed: String, translated: String) {
@@ -276,11 +302,16 @@ final class PatientResponseService: NSObject, ObservableObject {
         response11Translated = ""
         response3Transcribed = ""
         response3Translated = ""
+        responseIvtConsentTranscribed = ""
+        responseIvtConsentTranslated = ""
         errorMessage = nil
     }
 
     /// Translate patient speech to English (Spanish or Haitian Creole).
-    private func translateToEnglish(_ text: String, from language: AppLanguage) -> String {
+    private func translateToEnglish(_ text: String, from language: AppLanguage, recordingKey: String?) -> String {
+        if recordingKey == "ivt-consent" {
+            return IvtConsentSpeechTranslation.translate(text, from: language)
+        }
         switch language {
         case .english: return text
         case .spanish: return translateSpanishToEnglish(text)
@@ -309,6 +340,7 @@ final class PatientResponseService: NSObject, ObservableObject {
             ("cogiendo frutas", "picking fruits"), ("cogiendo fruta", "picking fruit"),
             ("los dos lados", "both sides"), ("igual en los dos lados", "same on both sides"), ("el mismo", "the same"), ("la misma", "the same"),
             ("en ambos lados", "on both sides"), ("por ambos lados", "on both sides"), ("los dos", "both"), ("las dos", "both"), ("uno y otro", "both"), ("una y otra", "both"), ("en los dos", "on both"), ("en las dos", "on both"),
+            ("cuántos dedos", "how many fingers"), ("cuantos dedos", "how many fingers"), ("cuántos", "how many"), ("cuantos", "how many"),
         ]
         for (es, en) in phrases {
             result = result.replacingOccurrences(of: es, with: en)
@@ -356,7 +388,8 @@ final class PatientResponseService: NSObject, ObservableObject {
             "coger": "pick", "cogiendo": "picking", "coge": "picks", "cojo": "I pick", "cogen": "they pick", "cogido": "picked", "cogida": "picked",
             "perro": "dog", "perros": "dogs", "gato": "cat", "gatos": "cats", "niño": "boy", "niña": "girl",
             "niños": "children", "niñas": "girls", "familia": "family", "madre": "mother", "padre": "father",
-            "cabeza": "head", "mano": "hand", "manos": "hands", "pie": "foot", "pies": "feet",
+            "cabeza": "head", "mano": "hand", "manos": "hands", "dedo": "finger", "dedos": "fingers",
+            "pie": "foot", "pies": "feet",
             "ojo": "eye", "ojos": "eyes", "boca": "mouth", "nariz": "nose",
             "grande": "big", "pequeño": "small", "pequeña": "small", "rojo": "red", "azul": "blue",
             "blanco": "white", "negro": "black", "verde": "green", "amarillo": "yellow",

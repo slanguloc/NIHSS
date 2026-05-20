@@ -375,9 +375,9 @@ struct ItemCardView: View {
                 }
                 }
 
-                // Item 3 (Visual): Creole finger-count answers → English numbers
-                if step.item.id == "3", languageStore.selectedLanguage == .haitianCreole {
-                    item3CreoleNumberRecordSection
+                // Item 3 (Visual): Spanish/Creole finger-count → English numbers
+                if step.item.id == "3", showsItem3NumberRecordSection {
+                    item3PatientNumberRecordSection
                 }
 
                 // Score options
@@ -450,15 +450,29 @@ struct ItemCardView: View {
         }
     }
 
-    // MARK: - Item 3 Creole number capture
+    private var showsItem3NumberRecordSection: Bool {
+        switch languageStore.selectedLanguage {
+        case .spanish, .haitianCreole: return true
+        case .english: return false
+        }
+    }
 
-    /// Speech capture for finger-count answers (e.g. "twa", "kat") with
-    /// Creole → English number translation for the evaluator.
-    private var item3CreoleNumberRecordSection: some View {
+    private var item3NumberRecordLanguageLabel: String {
+        switch languageStore.selectedLanguage {
+        case .spanish: return "Spanish"
+        case .haitianCreole: return "Creole"
+        case .english: return ""
+        }
+    }
+
+    // MARK: - Item 3 patient-language number capture
+
+    /// Speech capture for finger-count answers with patient-language → English numbers.
+    private var item3PatientNumberRecordSection: some View {
         let response = patientResponse.responseForItem3()
         let isRecordingThis = patientResponse.isRecordingItem3()
         return VStack(alignment: .leading, spacing: 8) {
-            Text("Record the number the patient says (Creole → English)")
+            Text("Record the number the patient says (\(item3NumberRecordLanguageLabel) → English)")
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
             Button {

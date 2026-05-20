@@ -40,6 +40,18 @@ When **Kreyòl ayisyen** is selected for patient language, NIHSS Item 9 uses:
 
 Spanish continues to use the Mayo Clinic Proceedings figures (`Item9_Figure2`, `Item9_Figure3`, `Item9_Figure4`).
 
+## ASPECTS region diagram (Stroke Code decision support)
+
+The ASPECTS template shown in the Stroke Code **ASPECTS — How to calculate** card is:
+
+- **Asset name:** `AspectsTemplate`
+- **Source:** Schröder J, Thomalla G. *A Critical Review of Alberta Stroke Program Early CT Score for Evaluation of Acute Stroke Imaging.* Front Neurol. 2017;7:245. **Figure 2** (ganglionic and supraganglionic slices with regions C, L, IC, I, M1–M6).
+- **License:** [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) — use permitted with attribution.
+- **PMC article:** <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5226934/>
+- **Original template:** Barber PA et al. Lancet. 2000;355(9216):1670-1674.
+
+Embedded for clinician training / education only (see [DISCLAIMER.md](DISCLAIMER.md)).
+
 ## Patient-language content (NIHSS prompts, consent script, back-translation)
 
 The Spanish, Haitian Creole, and (where applicable) English patient-facing strings — NIHSS prompts in `NIHSSStrokeScale/Models/NIHSS/NIHSSData.swift`, IV thrombolysis consent script in `NIHSSStrokeScale/Models/StrokeCode/StrokeCodeConsent.swift`, and the patient-speech back-translation tables in `NIHSSStrokeScale/Services/PatientResponseService.swift` — are **training aids, not certified medical translations**.

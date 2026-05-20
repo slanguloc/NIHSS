@@ -19,6 +19,7 @@ struct StrokeCodeDecisionView: View {
     @EnvironmentObject var store: StrokeCodeStore
     @EnvironmentObject var languageStore: LanguageStore
     @EnvironmentObject var spanishSpeech: SpanishSpeechService
+    @EnvironmentObject var patientResponse: PatientResponseService
     @AppStorage("preferredWeightUnit") private var preferredWeightUnitRaw: String = WeightUnit.kilograms.rawValue
 
     private var weightUnit: WeightUnit {
@@ -37,6 +38,7 @@ struct StrokeCodeDecisionView: View {
             anchorsCard
             imagingCard
             if state.imagingResult != .hemorrhagic {
+                aspectsHowToCalculateCard
                 aspectsCard
             }
             if state.imagingResult == .hemorrhagic {
@@ -51,17 +53,20 @@ struct StrokeCodeDecisionView: View {
                     consentCard
                 }
             }
+            if state.imagingResult != .hemorrhagic {
+                extendedWindowCard
+            }
             lvoCard
             if state.lvoStatus == .present {
                 evtCard
-            }
-            if state.imagingResult != .hemorrhagic {
-                extendedWindowCard
+            } else if shouldShowExtendedWindowEvtBridge {
+                extendedWindowEvtBridgeCard
             }
             if shouldShowMedicalManagement {
                 medicalManagementCard
             }
             finalDecisionsCard
+            appReferencesCard
             educationalFooter
                 .padding(.top, 8)
         }
@@ -90,6 +95,17 @@ struct StrokeCodeDecisionView: View {
         let evtUncommitted = state.evtChosen == .undecided ||
                              state.lvoStatus == .unknown
         return ivtUncommitted || evtUncommitted
+    }
+
+    private var minutesSinceLKW: Double? {
+        store.active?.lastKnownWell.map { Date().timeIntervalSince($0) / 60.0 }
+    }
+
+    /// Shown when late-window EVT criteria are met but LVO is not yet confirmed.
+    private var shouldShowExtendedWindowEvtBridge: Bool {
+        guard state.lvoStatus != .present else { return false }
+        guard let mins = minutesSinceLKW else { return false }
+        return state.suggestsExtendedWindowEVT(minutesSinceLKW: mins)
     }
 
     // MARK: - Banner / footer
@@ -253,8 +269,33 @@ struct StrokeCodeDecisionView: View {
     // MARK: - IVT card
 
     private var ivtCard: some View {
+        TimelineView(.periodic(from: .now, by: 60.0)) { ctx in
+            ivtCardContent
+                .task(id: Int(ctx.date.timeIntervalSinceReferenceDate / 60)) {
+                    store.applyIVTTimeWindowHintsIfApplicable()
+                }
+        }
+        .onAppear { store.applyIVTTimeWindowHintsIfApplicable() }
+    }
+
+    private var ivtCardContent: some View {
         let verdict = state.ivtVerdict()
+        let timing = state.ivtTimeWindowAssessment(minutesSinceLKW: minutesSinceLKW)
         return card(title: "IV thrombolysis eligibility", systemImage: "syringe") {
+            if store.active?.lastKnownWell != nil {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: timing.met == true ? "clock.badge.checkmark" : (timing.met == false ? "clock.badge.exclamationmark" : "clock"))
+                        .foregroundStyle(timing.met == true ? .green : (timing.met == false ? .orange : .secondary))
+                    Text(timing.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
             verdictBadge(verdict)
 
             ForEach(groupedIvt(), id: \.0) { group, items in
@@ -263,13 +304,7 @@ struct StrokeCodeDecisionView: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
                 ForEach(items) { c in
-                    criterionRow(
-                        criterion: c,
-                        answer: state.ivtCriteria[c.id] ?? .unknown,
-                        onChange: { newValue in
-                            store.mutateDecisions { $0.ivtCriteria[c.id] = newValue }
-                        }
-                    )
+                    ivtCriterionRow(criterion: c, timingDetail: c.id == "ivt.windowLKW45h" ? timing.detail : nil)
                 }
             }
 
@@ -301,6 +336,25 @@ struct StrokeCodeDecisionView: View {
         }
     }
 
+    private func ivtCriterionRow(criterion: DecisionCriterion, timingDetail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            criterionRow(
+                criterion: criterion,
+                answer: state.ivtCriteria[criterion.id] ?? .unknown,
+                onChange: { newValue in
+                    store.mutateDecisions { $0.ivtCriteria[criterion.id] = newValue }
+                }
+            )
+            if let timingDetail,
+               (state.ivtCriteria[criterion.id] ?? .unknown) != .unknown {
+                Text("From LKW: \(timingDetail)")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                    .padding(.leading, 4)
+            }
+        }
+    }
+
     // MARK: - LVO card
 
     private var lvoCard: some View {
@@ -316,7 +370,7 @@ struct StrokeCodeDecisionView: View {
             case .unknown:
                 hint("Obtain CTA (and CT perfusion if indicated) for LVO assessment.")
             case .present:
-                hint("LVO present — proceed to EVT eligibility checklist below.", color: .blue)
+                hint("LVO present — see EVT eligibility below.", color: .blue)
             case .absent:
                 hint("No LVO — EVT not indicated. Continue medical management per protocol.")
             }
@@ -326,14 +380,25 @@ struct StrokeCodeDecisionView: View {
     // MARK: - EVT card
 
     private var evtCard: some View {
-        let verdict = state.evtVerdict()
+        let verdict = state.evtVerdict(minutesSinceLKW: minutesSinceLKW)
         let site = state.lvoSite ?? .unknown
         let mrs = state.baselineMRS ?? .unknown
         return card(title: "EVT eligibility", systemImage: "scissors") {
+            if let mins = minutesSinceLKW, state.suggestsExtendedWindowEVT(minutesSinceLKW: mins) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "link")
+                        .foregroundStyle(.blue)
+                    Text("Late-window EVT criteria are documented on the Extended window card above. Consider neuro-IR discussion (training only).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(8)
+                .background(Color.blue.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
             verdictBadge(verdict)
 
-            // Occlusion-site picker (training): drives the per-site
-            // evidence-class badge below.
             HStack {
                 Text("Occlusion site")
                     .font(.subheadline)
@@ -353,8 +418,6 @@ struct StrokeCodeDecisionView: View {
 
             Divider().padding(.vertical, 2)
 
-            // Baseline mRS picker (training): three buckets aligned with
-            // the 2026 update emphasis on functional status nuance.
             HStack {
                 Text("Baseline mRS")
                     .font(.subheadline)
@@ -367,20 +430,31 @@ struct StrokeCodeDecisionView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-            Text(mrs.evtNote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             Divider().padding(.vertical, 2)
 
-            ForEach(StrokeCodeDecisionCatalog.evt) { c in
-                criterionRow(
-                    criterion: c,
-                    answer: state.evtCriteria[c.id] ?? .unknown,
-                    onChange: { newValue in
-                        store.mutateDecisions { $0.evtCriteria[c.id] = newValue }
-                    }
-                )
+            Text("Captured from workflow")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            ForEach(state.evtStructuredCriteria(minutesSinceLKW: minutesSinceLKW)) { row in
+                evtStructuredCriterionRow(row)
+            }
+
+            let manual = state.evtManualCriteriaForDisplay()
+            if !manual.isEmpty {
+                Divider().padding(.vertical, 2)
+                Text("Confirm")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                ForEach(manual) { c in
+                    criterionRow(
+                        criterion: c,
+                        answer: state.evtCriteria[c.id] ?? .unknown,
+                        onChange: { newValue in
+                            store.mutateDecisions { $0.evtCriteria[c.id] = newValue }
+                        }
+                    )
+                }
             }
 
             failedList(verdict)
@@ -432,22 +506,46 @@ struct StrokeCodeDecisionView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 2026-flavored EVT considerations as a compact bullet list. Training
-    /// notes only — does not affect the checklist verdict.
+    private func evtStructuredCriterionRow(_ row: EvtStructuredCriterion) -> some View {
+        let statusIcon: String = {
+            switch row.isMet {
+            case .some(true): return "checkmark.circle.fill"
+            case .some(false): return "xmark.circle.fill"
+            case .none: return "questionmark.circle"
+            }
+        }()
+        let statusColor: Color = {
+            switch row.isMet {
+            case .some(true): return .green
+            case .some(false): return .orange
+            case .none: return .secondary
+            }
+        }()
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: statusIcon)
+                .foregroundStyle(statusColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.label)
+                    .font(.caption.bold())
+                Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// Nuances not captured in structured fields or the short confirm list.
     private var evtConsiderations2026: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label("EVT considerations (2026, training)", systemImage: "sparkles")
+            Label("Additional nuances (2026, training)", systemImage: "sparkles")
                 .font(.caption.bold())
                 .foregroundStyle(.purple)
             ForEach([
-                "Low NIHSS (< 6) with disabling deficit (e.g., dominant-hemisphere aphasia, hemianopia) — EVT is reasonable (Class IIb); individualize.",
-                "Very high NIHSS (> 25) with large core — EVT may be considered per SELECT2 / RESCUE-Japan LIMIT / ANGEL-ASPECT.",
-                "IV thrombolysis before EVT — if IVT-eligible, give it; do NOT skip IVT to expedite EVT (DIRECT-MT / SKIP did not displace this).",
-                "Age > 80 — not a disqualifier; baseline functional status drives candidacy.",
-                "Tandem cervical ICA + intracranial — EVT reasonable; acute cervical stenting is individualized.",
-                "Anesthesia choice (GA vs conscious sedation) — Class IIa; institution / patient-specific (SIESTA, GOLIATH, AnStroke).",
-                "Time > 24 h from LKW — not currently recommended outside trial (SELECT-LATE ongoing).",
-                "Pediatric stroke (< 18) — first formal pediatric recommendations in 2026; involve pediatric stroke team."
+                "If IVT-eligible, give thrombolysis before EVT; do not skip IVT to expedite transfer (DIRECT-MT / SKIP).",
+                "Low NIHSS with disabling deficit (e.g., aphasia, hemianopia): EVT may be reasonable (Class IIb) even when NIHSS < 6.",
+                "Anesthesia (GA vs conscious sedation): Class IIa; institution- and patient-specific (SIESTA, GOLIATH, AnStroke)."
             ], id: \.self) { item in
                 Text("• \(item)")
                     .font(.caption2)
@@ -543,7 +641,7 @@ struct StrokeCodeDecisionView: View {
                 .controlSize(.mini)
                 .disabled((state.aspectsScore ?? 10) == 10)
             }
-            Text("ASPECTS quantifies early ischemic changes on non-contrast CT (10 = normal). Full EVT/IVT training notes in the ASPECTS card below.")
+            Text("ASPECTS quantifies early ischemic changes on non-contrast CT (10 = normal). ASPECTS decision notes and diagram are below; EVT candidacy uses this score on the EVT card.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -914,6 +1012,163 @@ struct StrokeCodeDecisionView: View {
         }
     }
 
+    // MARK: - ASPECTS "how to calculate" card
+
+    /// Explains how the ASPECTS score is computed on a non-contrast head CT
+    /// for anterior-circulation strokes. Training reference only.
+    private var aspectsHowToCalculateCard: some View {
+        card(title: "ASPECTS — How to calculate", systemImage: "list.number") {
+            Text("ASPECTS (Alberta Stroke Program Early CT Score) is a 10-point topographic score that quantifies early ischemic changes (EIC) on a non-contrast head CT in the middle cerebral artery (MCA) territory.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Method")
+                    .font(.subheadline.bold())
+                aspectsStepBullet(num: "1", text: "Start at 10 points (normal CT).")
+                aspectsStepBullet(num: "2", text: "Review two standardized axial NCCT slices in the MCA territory.")
+                aspectsStepBullet(num: "3", text: "Subtract 1 point for each of the 10 MCA regions showing early ischemic change (focal hypoattenuation or loss of gray-white differentiation).")
+                aspectsStepBullet(num: "4", text: "Compare with the contralateral hemisphere to detect subtle changes (insular ribbon sign, sulcal effacement).")
+                aspectsStepBullet(num: "5", text: "Final score = 10 − number of affected regions. Range 0 (entire MCA infarcted) to 10 (normal).")
+            }
+
+            Divider().padding(.vertical, 2)
+
+            aspectsDiagram
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Region names")
+                    .font(.subheadline.bold())
+
+                aspectsRegionGroupHeading("Ganglionic slice (basal-ganglia level) — 7 regions")
+                aspectsRegionRow("C", "Caudate")
+                aspectsRegionRow("L", "Lentiform nucleus")
+                aspectsRegionRow("IC", "Internal capsule")
+                aspectsRegionRow("I", "Insular ribbon (insular cortex)")
+                aspectsRegionRow("M1", "Anterior MCA cortex (frontal operculum)")
+                aspectsRegionRow("M2", "MCA cortex lateral to insular ribbon (anterior temporal)")
+                aspectsRegionRow("M3", "Posterior MCA cortex (posterior temporal)")
+
+                aspectsRegionGroupHeading("Supraganglionic slice (above basal ganglia) — 3 regions")
+                aspectsRegionRow("M4", "Anterior MCA, superior to M1")
+                aspectsRegionRow("M5", "Lateral MCA, superior to M2")
+                aspectsRegionRow("M6", "Posterior MCA, superior to M3")
+            }
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Interpretation (training)")
+                    .font(.subheadline.bold())
+                Text("• 8–10 = favorable; standard EVT candidacy (HERMES).")
+                Text("• 6–7 = borderline; verify with neuroradiology.")
+                Text("• 3–5 = large core; EVT may be considered in selected patients (SELECT2 / RESCUE-Japan LIMIT / ANGEL-ASPECT).")
+                Text("• 0–2 = extensive infarct; EVT generally not recommended outside trials.")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tips")
+                    .font(.subheadline.bold())
+                    .padding(.top, 4)
+                Text("• ASPECTS is for anterior circulation only — use pc-ASPECTS (posterior-circulation ASPECTS) for the basilar/PCA territory.")
+                Text("• Inter-rater variability is moderate; collaborate with neuroradiology when borderline.")
+                Text("• DWI-ASPECTS (on MRI diffusion) is used in extended-window selection.")
+                Text("• Subcortical and cortical regions are weighted equally — each affected region subtracts 1 point regardless of size.")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Text("Source: Barber PA, Demchuk AM, Zhang J, Buchan AM. Validity and reliability of a quantitative computed tomography score in predicting outcome of hyperacute stroke before thrombolytic therapy. Lancet. 2000;355(9216):1670-1674.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 4)
+        }
+    }
+
+    private func aspectsStepBullet(num: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(num)
+                .font(.caption2.bold())
+                .frame(width: 18, height: 18)
+                .background(Color.blue.opacity(0.18))
+                .foregroundStyle(.blue)
+                .clipShape(Circle())
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func aspectsRegionGroupHeading(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.bold())
+            .foregroundStyle(.purple)
+            .padding(.top, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func aspectsRegionRow(_ code: String, _ name: String) -> some View {
+        HStack(spacing: 8) {
+            Text(code)
+                .font(.caption2.monospaced().bold())
+                .frame(minWidth: 36, alignment: .center)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.purple.opacity(0.14))
+                .foregroundStyle(.purple)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            Text(name)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - ASPECTS visual diagram
+
+    /// Standard ASPECTS template (ganglionic + supraganglionic slices, all 10
+    /// regions labeled). Image: Schröder & Thomalla, Front Neurol 2017,
+    /// Figure 2 (CC BY 4.0); template originally from Barber et al., Lancet 2000.
+    private static let aspectsDiagramPMCURL = URL(string: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5226934/")!
+
+    private var aspectsDiagram: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("MCA territory — region map")
+                .font(.subheadline.bold())
+
+            Text("Ganglionic slice (left): C, L, IC, I, M1, M2, M3. Supraganglionic slice (right): M4, M5, M6. Subtract 1 point per region with early ischemic change.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Image("AspectsTemplate")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+                )
+                .accessibilityLabel("ASPECTS template showing ganglionic and supraganglionic axial slices with regions C, L, IC, I, M1 through M6 labeled")
+
+            Link(destination: Self.aspectsDiagramPMCURL) {
+                Text("Diagram source: Schröder & Thomalla, Front Neurol 2017 (CC BY 4.0) — PMC5226934, Figure 2")
+            }
+            .font(.caption2)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     // MARK: - ASPECTS training-notes card
 
     /// Detailed training notes for ASPECTS. The numeric score is set in the
@@ -944,27 +1199,19 @@ struct StrokeCodeDecisionView: View {
             Divider().padding(.vertical, 2)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("EVT training note")
+                Text("EVT / IVT notes")
                     .font(.subheadline.bold())
                 Text(category.evtTrainingNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("IVT training note")
-                    .font(.subheadline.bold())
                 Text(category.ivtTrainingNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Full EVT candidacy summary is on the EVT eligibility card when LVO is present.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
-
-            Text("Educational summary of HERMES (ASPECTS ≥ 6, 0–6 h) and the 2023 large-core EVT trials (SELECT2 / RESCUE-Japan LIMIT / ANGEL-ASPECT). Not a clinical decision tool.")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -983,6 +1230,7 @@ struct StrokeCodeDecisionView: View {
             get: { state.aspectsScore ?? 10 },
             set: { newValue in
                 store.mutateDecisions { $0.aspectsScore = max(0, min(10, newValue)) }
+                store.applyExtendedWindowEVTHintsIfApplicable()
             }
         )
     }
@@ -1245,11 +1493,64 @@ struct StrokeCodeDecisionView: View {
                     .clipShape(Capsule())
             }
 
+            if verdict.suggestsEVTDiscussion, let mins = minutesSinceLKW {
+                extendedWindowEvtLinkedBanner(minutesSinceLKW: mins, emphasizeNextSteps: true)
+            }
+
             Text("Educational summary of WAKE-UP, EXTEND, EPITHET (IVT extended), DAWN, DEFUSE-3 (EVT 6–24 h), and SELECT2 / RESCUE-Japan LIMIT / ANGEL-ASPECT (large-core EVT). Not a clinical decision tool.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
         }
+    }
+
+    /// Training banner linking late-window imaging criteria to EVT workflow.
+    private func extendedWindowEvtLinkedBanner(minutesSinceLKW: Double,
+                                               emphasizeNextSteps: Bool = false) -> some View {
+        let ew = state.extendedWindow ?? .empty
+        let trials = ew.evtTrialLabelsMet
+        let trialText = trials.isEmpty
+            ? "Late-window EVT criteria selected"
+            : "Criteria met: " + trials.joined(separator: ", ")
+
+        return VStack(alignment: .leading, spacing: 6) {
+            Label("Consider EVT discussion (training)", systemImage: "person.2.wave.2.fill")
+                .font(.subheadline.bold())
+                .foregroundStyle(.blue)
+            Text("Based on specialized imaging in the 6–24 h window (\(formatMinutes(minutesSinceLKW)) since LKW), this profile supports considering endovascular thrombectomy with your stroke team and neuro-interventional radiology. This is not a treatment order.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(trialText)
+                .font(.caption.bold())
+                .foregroundStyle(.blue)
+            if emphasizeNextSteps {
+                Text("Next: set LVO on the vascular imaging card, then open EVT eligibility for the captured summary and any remaining confirm items.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.blue.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Shown when extended-window EVT criteria are met but LVO is not yet set.
+    private var extendedWindowEvtBridgeCard: some View {
+        let mins = minutesSinceLKW ?? 0
+        return VStack(alignment: .leading, spacing: 10) {
+            Label("Extended-window EVT — next step", systemImage: "arrow.down.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.blue)
+            extendedWindowEvtLinkedBanner(minutesSinceLKW: mins, emphasizeNextSteps: true)
+            Text("Set LVO to “LVO present” on the vascular imaging card above to open the full EVT eligibility checklist and training plan.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func extendedBadgeColor(_ v: ExtendedWindowVerdict) -> Color {
@@ -1271,6 +1572,8 @@ struct StrokeCodeDecisionView: View {
                     ew[keyPath: keyPath] = newValue
                     d.extendedWindow = ew
                 }
+                store.applyExtendedWindowEVTHintsIfApplicable()
+                store.applyIVTTimeWindowHintsIfApplicable()
             }
         )
     }
@@ -1346,11 +1649,97 @@ struct StrokeCodeDecisionView: View {
                 consentSectionRow(section, language: language)
             }
 
+            ivtConsentPatientResponseSection(language: language)
+
             Text("Document consent per your institution's protocol. This script does NOT replace your hospital's consent form.")
                 .font(.caption2.bold())
                 .foregroundStyle(.orange)
                 .padding(.top, 4)
         }
+    }
+
+    /// Record the patient's yes/no/uncertain answer after the consent script (Spanish / Creole / English).
+    private func ivtConsentPatientResponseSection(language: AppLanguage) -> some View {
+        let response = patientResponse.responseForIvtConsent()
+        let isRecording = patientResponse.isRecordingIvtConsent()
+        let languageLabel = language == .haitianCreole ? "Creole" : language.displayName
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Record patient's answer to consent")
+                .font(.subheadline.bold())
+            Text("After reading the script, record whether the patient agrees to IV thrombolysis (\(languageLabel) → English). Training aid only.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button {
+                if isRecording {
+                    patientResponse.stopRecording()
+                } else {
+                    patientResponse.requestAuthorization { granted in
+                        if granted {
+                            patientResponse.startRecording(key: "ivt-consent", language: language)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                        .font(.title3)
+                    Text(isRecording ? "Stop recording" : "Record consent answer")
+                        .font(.caption.bold())
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity)
+                .background(isRecording ? Color.red.opacity(0.2) : Color.green.opacity(0.12))
+                .foregroundStyle(.green)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .disabled(patientResponse.authorizationStatus == .denied
+                      || (patientResponse.isRecording && !isRecording))
+
+            if !response.transcribed.isEmpty || !response.translated.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    if !response.transcribed.isEmpty {
+                        Text("Patient said: \(response.transcribed)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !response.translated.isEmpty {
+                        Text(response.translated)
+                            .font(.caption.bold())
+                    }
+                    consentInterpretationBadge(patientResponse.ivtConsentInterpretation)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color(.tertiarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.green.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func consentInterpretationBadge(_ interpretation: IvtConsentInterpretation) -> some View {
+        let (text, color): (String, Color) = {
+            switch interpretation {
+            case .agrees: return ("Agrees", .green)
+            case .refuses: return ("Declines", .red)
+            case .uncertain: return ("Uncertain", .orange)
+            case .unclear: return ("Review manually", .secondary)
+            }
+        }()
+        Text(text)
+            .font(.caption2.bold())
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.18))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
     }
 
     private func consentSectionRow(_ section: ConsentSection, language: AppLanguage) -> some View {
@@ -1388,6 +1777,307 @@ struct StrokeCodeDecisionView: View {
         .padding(.horizontal, 8)
         .background(Color(.tertiarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - References card
+
+    /// Curated list of trials, guidelines, and content sources used to build
+    /// the decision support, dosing, and patient-facing content throughout
+    /// the app. Each section is collapsed by default to keep the card
+    /// compact. Training reference only.
+    private var appReferencesCard: some View {
+        card(title: "References & sources", systemImage: "book.closed") {
+            Text("Trials, guidelines, and content sources that informed the decision support, dosing notes, and patient-facing materials in this app. Tap a group to expand.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            referenceGroup(title: "NIH Stroke Scale (NIHSS)") {
+                referenceItem(
+                    title: "NIH Stroke Scale (March 2025)",
+                    citation: "NINDS / NIH Stroke Scale, March 2025 edition. National Institute of Neurological Disorders and Stroke.",
+                    url: "https://www.ninds.nih.gov/health-information/public-education/know-stroke/health-professionals/nih-stroke-scale"
+                )
+                referenceItem(
+                    title: "Spanish NIHSS Item 9 figures",
+                    citation: "Mayo Clinic Proceedings. 2006;81(4):476-480.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "Original NIHSS",
+                    citation: "Brott T et al. Measurements of acute cerebral infarction: a clinical examination scale. Stroke. 1989;20(7):864-870.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "IV thrombolysis") {
+                referenceItem(
+                    title: "Alteplase 0–3 h (NINDS)",
+                    citation: "The NINDS rt-PA Stroke Study Group. Tissue plasminogen activator for acute ischemic stroke. NEJM. 1995;333(24):1581-1587.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "Alteplase 3–4.5 h (ECASS-3)",
+                    citation: "Hacke W et al. NEJM. 2008;359(13):1317-1329.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "Tenecteplase 0–4.5 h (AcT)",
+                    citation: "Menon BK et al. Lancet. 2022;400(10347):161-169.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "Tenecteplase (TASTE-A)",
+                    citation: "Bivard A et al. Lancet Neurology. 2022;21(6):520-527.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "Tenecteplase late window (TIMELESS)",
+                    citation: "Albers GW et al. NEJM. 2024;390(8):701-711.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "AHA/ASA acute ischemic stroke (2019)",
+                    citation: "Powers WJ et al. Stroke. 2019;50(12):e344-e418.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "Endovascular therapy (EVT, 0–6 h)") {
+                referenceItem(
+                    title: "HERMES meta-analysis",
+                    citation: "Goyal M et al. Lancet. 2016;387(10029):1723-1731.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "MR CLEAN",
+                    citation: "Berkhemer OA et al. NEJM. 2015;372(1):11-20.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "ESCAPE",
+                    citation: "Goyal M et al. NEJM. 2015;372(11):1019-1030.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "SWIFT PRIME",
+                    citation: "Saver JL et al. NEJM. 2015;372(24):2285-2295.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "EXTEND-IA",
+                    citation: "Campbell BCV et al. NEJM. 2015;372(11):1009-1018.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "REVASCAT",
+                    citation: "Jovin TG et al. NEJM. 2015;372(24):2296-2306.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "IVT before EVT (DIRECT-MT)",
+                    citation: "Yang P et al. NEJM. 2020;382(21):1981-1993.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "IVT before EVT (SKIP)",
+                    citation: "Suzuki K et al. JAMA. 2021;325(3):244-253.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "Extended / wake-up window") {
+                referenceItem(
+                    title: "WAKE-UP (DWI-FLAIR mismatch, IVT)",
+                    citation: "Thomalla G et al. NEJM. 2018;379(7):611-622.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "EXTEND (perfusion mismatch IVT 4.5–9 h)",
+                    citation: "Ma H et al. NEJM. 2019;380(19):1795-1803.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "EPITHET",
+                    citation: "Davis SM et al. Lancet Neurology. 2008;7(4):299-309.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "DAWN (EVT 6–24 h, clinical-core mismatch)",
+                    citation: "Nogueira RG et al. NEJM. 2018;378(1):11-21.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "DEFUSE-3 (EVT 6–16 h, perfusion mismatch)",
+                    citation: "Albers GW et al. NEJM. 2018;378(8):708-718.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "Large-core EVT (2022–2023)") {
+                referenceItem(
+                    title: "SELECT2",
+                    citation: "Sarraj A et al. NEJM. 2023;388(14):1259-1271.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "RESCUE-Japan LIMIT",
+                    citation: "Yoshimura S et al. NEJM. 2022;386(14):1303-1313.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "ANGEL-ASPECT",
+                    citation: "Huo X et al. NEJM. 2023;388(14):1272-1283.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "ASPECTS") {
+                referenceItem(
+                    title: "Original ASPECTS",
+                    citation: "Barber PA, Demchuk AM, Zhang J, Buchan AM. Lancet. 2000;355(9216):1670-1674.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "ASPECTS region diagram (in-app)",
+                    citation: "Schröder J, Thomalla G. Front Neurol. 2017;7:245. Figure 2 (CC BY 4.0). PMC5226934.",
+                    url: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5226934/"
+                )
+            }
+
+            referenceGroup(title: "Anesthesia for EVT") {
+                referenceItem(
+                    title: "SIESTA",
+                    citation: "Schönenberger S et al. JAMA. 2016;316(19):1986-1996.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "GOLIATH",
+                    citation: "Simonsen CZ et al. JAMA Neurology. 2018;75(4):470-477.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "AnStroke",
+                    citation: "Löwhagen Hendén P et al. Stroke. 2017;48(6):1601-1607.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "Antiplatelet / DAPT") {
+                referenceItem(
+                    title: "CHANCE",
+                    citation: "Wang Y et al. NEJM. 2013;369(1):11-19.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "POINT",
+                    citation: "Johnston SC et al. NEJM. 2018;379(3):215-225.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "THALES (ticagrelor)",
+                    citation: "Johnston SC et al. NEJM. 2020;383(3):207-217.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "Secondary prevention / monitoring") {
+                referenceItem(
+                    title: "CLOTS-3 (intermittent pneumatic compression)",
+                    citation: "CLOTS Trials Collaboration. Lancet. 2013;382(9891):516-524.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "HeadPoST (head positioning)",
+                    citation: "Anderson CS et al. NEJM. 2017;376(25):2437-2447.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "CRYSTAL-AF (implantable loop recorder)",
+                    citation: "Sanna T et al. NEJM. 2014;370(26):2478-2486.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "STROKE-AF",
+                    citation: "Bernstein RA et al. JAMA. 2021;325(21):2169-2177.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "PER-DIEM",
+                    citation: "Buck BH et al. JAMA. 2021;325(21):2160-2168.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "PFO closure — RESPECT",
+                    citation: "Saver JL et al. NEJM. 2017;377(11):1022-1032.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "PFO closure — CLOSE",
+                    citation: "Mas JL et al. NEJM. 2017;377(11):1011-1021.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "PFO closure — REDUCE",
+                    citation: "Søndergaard L et al. NEJM. 2017;377(11):1033-1042.",
+                    url: nil
+                )
+            }
+
+            referenceGroup(title: "Guidelines") {
+                referenceItem(
+                    title: "AHA/ASA 2019 acute ischemic stroke",
+                    citation: "Powers WJ et al. Stroke. 2019;50(12):e344-e418.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "AHA/ASA 2026 update (emphasis cited in app)",
+                    citation: "AHA/ASA. Guideline for the Early Management of Patients with Acute Ischemic Stroke (2026 update).",
+                    url: nil
+                )
+            }
+
+            Text("All references are summarized for training and education. Verify against current guidelines and your institution's protocol before any clinical use.")
+                .font(.caption2.bold())
+                .foregroundStyle(.orange)
+                .padding(.top, 4)
+        }
+    }
+
+    /// Collapsible group of related references; collapsed by default for
+    /// compactness in the long decision-support scroll.
+    private func referenceGroup<Content: View>(title: String,
+                                               @ViewBuilder content: @escaping () -> Content) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Text(title)
+                .font(.subheadline.bold())
+                .foregroundStyle(.primary)
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// Single reference row with a short title and full citation. Linked when
+    /// a URL is provided.
+    private func referenceItem(title: String, citation: String, url: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            if let urlString = url, let linkURL = URL(string: urlString) {
+                Link(citation, destination: linkURL)
+                    .font(.caption2)
+            } else {
+                Text(citation)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Final decisions card
@@ -1566,6 +2256,9 @@ struct StrokeCodeDecisionView: View {
                     store.captureIfAbsent(milestoneId: "cta",
                                           note: "Auto: LVO status set to \(newValue.label)")
                 }
+                if newValue == .present {
+                    store.applyExtendedWindowEVTHintsIfApplicable()
+                }
             }
         )
     }
@@ -1621,6 +2314,9 @@ struct StrokeCodeDecisionView: View {
     return ScrollView {
         StrokeCodeDecisionView()
             .environmentObject(store)
+            .environmentObject(LanguageStore())
+            .environmentObject(SpanishSpeechService())
+            .environmentObject(PatientResponseService())
             .padding()
     }
 }

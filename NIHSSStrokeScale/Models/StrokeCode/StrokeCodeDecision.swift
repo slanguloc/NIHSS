@@ -374,6 +374,19 @@ struct ExtendedWindowState: Codable, Equatable {
     var largeCoreEvtCandidate: Bool = false
 
     static let empty = ExtendedWindowState()
+
+    /// Trial labels for toggles the trainee marked as met (EVT 6–24 h section).
+    var evtTrialLabelsMet: [String] {
+        var labels: [String] = []
+        if dawnMismatch { labels.append("DAWN") }
+        if defuse3Mismatch { labels.append("DEFUSE-3") }
+        if largeCoreEvtCandidate { labels.append("Large-core (SELECT2-type)") }
+        return labels
+    }
+
+    var evtExtendedCriteriaSelected: Bool {
+        dawnMismatch || defuse3Mismatch || largeCoreEvtCandidate
+    }
 }
 
 // MARK: - Aggregated state per session
@@ -597,6 +610,14 @@ enum ExtendedWindowVerdict: Equatable {
         case .noCriteriaMet:  return "No extended-window criteria currently met"
         }
     }
+
+    /// True when the extended-window summary supports considering late-window EVT.
+    var suggestsEVTDiscussion: Bool {
+        switch self {
+        case .evtCandidate, .bothCandidate: return true
+        default: return false
+        }
+    }
 }
 
 extension ExtendedWindowState {
@@ -658,14 +679,14 @@ enum StrokeCodeDecisionCatalog {
         DecisionCriterion(
             id: "ivt.windowLKW45h",
             label: "Within 4.5 hours of Last Known Well (or extended-window eligible)",
-            helpText: "Standard IV thrombolysis window is ≤4.5h from LKW. Extended window (up to ~9h) requires advanced imaging selection per protocol.",
+            helpText: "Auto-filled from Last known well on the Timeline when still unanswered. Standard window ≤4.5 h; 4.5–9 h requires Extended window imaging criteria (WAKE-UP / EXTEND). You may override Yes/No.",
             polarity: .mustBeYes,
             group: "Required"
         ),
         DecisionCriterion(
             id: "ivt.noHemorrhage",
-            label: "Non-contrast CT shows no intracranial hemorrhage",
-            helpText: "Hemorrhage on CT excludes IV thrombolysis. Imaging branch above must be 'ischemic'.",
+            label: "Hemorrhage ruled out on non-contrast head CT",
+            helpText: "Answer Yes if NCCT shows no intracranial hemorrhage. Answer No if hemorrhage is present, findings are equivocal, or the scan is not yet read. Hemorrhage excludes IV thrombolysis (see imaging branch above).",
             polarity: .mustBeYes,
             group: "Required"
         ),
@@ -757,52 +778,39 @@ enum StrokeCodeDecisionCatalog {
         )
     ]
 
-    /// Endovascular thrombectomy (EVT) checklist. All items must be YES
-    /// to suggest training-eligibility for EVT.
-    static let evt: [DecisionCriterion] = [
-        DecisionCriterion(
-            id: "evt.lvoConfirmed",
-            label: "Confirmed LVO on vascular imaging",
-            helpText: "Anterior circulation: ICA terminus or M1 (M2 selected). Posterior: basilar artery. Other locations in select patients.",
-            polarity: .mustBeYes,
-            group: "Required"
-        ),
-        DecisionCriterion(
-            id: "evt.nihssThreshold",
-            label: "NIHSS ≥ 6 (or ≥ 10 for basilar)",
-            helpText: "Disabling deficit threshold. Basilar artery occlusion requires NIHSS ≥10 per 2026 AHA/ASA recommendation.",
-            polarity: .mustBeYes,
-            group: "Required"
-        ),
-        DecisionCriterion(
-            id: "evt.preStrokeFunction",
-            label: "Acceptable pre-stroke functional status (e.g., mRS ≤ 1)",
-            helpText: "Pre-stroke modified Rankin Scale typically ≤1 for standard EVT trials; institutional protocols may vary.",
-            polarity: .mustBeYes,
-            group: "Required"
-        ),
-        DecisionCriterion(
-            id: "evt.windowLKW",
-            label: "Within 6 h of LKW (or 6–24 h with imaging selection)",
-            helpText: "Standard window ≤6h; late window 6–24h requires advanced imaging (DAWN / DEFUSE-3 type criteria). The 2026 guideline endorses select patients with larger ischemic cores.",
-            polarity: .mustBeYes,
-            group: "Required"
-        ),
-        DecisionCriterion(
-            id: "evt.aspectsOrCore",
-            label: "ASPECTS ≥ 6 (or large-core eligible per 2026 criteria)",
-            helpText: "ASPECTS ≥6 on non-contrast CT, or selected larger-core patients per 2026 AHA/ASA expanded EVT recommendations.",
-            polarity: .mustBeYes,
-            group: "Required"
-        ),
+    /// Manual EVT checklist items only for data **not** captured elsewhere
+    /// (LVO status, LKW/extended window, ASPECTS, baseline mRS, NIHSS total).
+    static let evtManual: [DecisionCriterion] = [
         DecisionCriterion(
             id: "evt.adultPathway",
             label: "Age ≥ 18 (adult pathway)",
-            helpText: "Adult EVT pathway. The 2026 AHA/ASA guideline introduces first-time pediatric stroke recommendations; consult pediatric stroke team for under-18 patients.",
+            helpText: "Adult EVT pathway. For patients under 18, consult a pediatric stroke team per 2026 AHA/ASA guidance.",
             polarity: .mustBeYes,
-            group: "Required"
+            group: "Confirm"
+        ),
+        DecisionCriterion(
+            id: "evt.disablingDeficit",
+            label: "Disabling neurologic deficit on exam",
+            helpText: "Shown when NIHSS total is not captured. Typically NIHSS ≥6 (≥10 for basilar LVO).",
+            polarity: .mustBeYes,
+            group: "Confirm"
         )
     ]
+
+    /// Legacy alias — use `evtManual` plus structured EVT assessment in `DecisionState`.
+    static var evt: [DecisionCriterion] { evtManual }
+}
+
+// MARK: - EVT structured assessment (training)
+
+/// One row in the EVT “captured from workflow” summary (not a duplicate
+/// yes/no question — derived from LVO, LKW, ASPECTS, etc.).
+struct EvtStructuredCriterion: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let detail: String
+    /// `nil` = still needs input elsewhere in the workflow.
+    let isMet: Bool?
 }
 
 // MARK: - Verdict (training suggestion)
@@ -880,8 +888,246 @@ extension DecisionState {
         verdict(for: StrokeCodeDecisionCatalog.ivt, answers: ivtCriteria)
     }
 
-    /// EVT verdict from the catalog and current answers.
-    func evtVerdict() -> CandidacyVerdict {
-        verdict(for: StrokeCodeDecisionCatalog.evt, answers: evtCriteria)
+    /// Training assessment of IV thrombolysis time window from LKW and,
+    /// when applicable, extended-window imaging toggles.
+    func ivtTimeWindowAssessment(minutesSinceLKW: Double?) -> (met: Bool?, detail: String) {
+        guard let mins = minutesSinceLKW else {
+            return (nil, "Capture Last known well on the Timeline tab.")
+        }
+        let elapsed = Self.formatMinutesSinceLKW(mins)
+        if mins < 0 {
+            return (false, "LKW is in the future (\(elapsed)) — verify timing.")
+        }
+        if mins <= 270 {
+            return (true, "\(elapsed) since LKW — within standard IV window (≤4.5 h).")
+        }
+        if mins <= 540 {
+            let ew = extendedWindow ?? .empty
+            let extendedMet = ew.advancedImagingDone &&
+                (ew.dwiFlairMismatch || ew.perfusionMismatchIvt)
+            if extendedMet {
+                return (true, "\(elapsed) since LKW — extended IV window (4.5–9 h) with imaging selection documented.")
+            }
+            return (false, "\(elapsed) since LKW — past 4.5 h; mark WAKE-UP / EXTEND criteria on Extended window card if eligible.")
+        }
+        return (false, "\(elapsed) since LKW — beyond IV thrombolysis windows (>9 h).")
+    }
+
+    /// Sets `ivt.windowLKW45h` from LKW timing. Only fills when still unknown.
+    mutating func applyIVTTimeWindowFromLKW(minutesSinceLKW: Double?) {
+        let assessment = ivtTimeWindowAssessment(minutesSinceLKW: minutesSinceLKW)
+        guard let met = assessment.met else { return }
+        let current = ivtCriteria["ivt.windowLKW45h"] ?? .unknown
+        guard current == .unknown else { return }
+        ivtCriteria["ivt.windowLKW45h"] = met ? .yes : .no
+    }
+
+    private static func formatMinutesSinceLKW(_ totalMins: Double) -> String {
+        let m = max(0, Int(totalMins.rounded()))
+        let h = m / 60
+        let r = m % 60
+        return h > 0 ? String(format: "%dh %02dm", h, r) : String(format: "%d min", r)
+    }
+
+    /// Rows derived from data entered on other decision cards (not re-asked
+    /// as yes/no checklist items).
+    func evtStructuredCriteria(minutesSinceLKW: Double?) -> [EvtStructuredCriterion] {
+        var rows: [EvtStructuredCriterion] = []
+
+        switch lvoStatus {
+        case .present:
+            rows.append(EvtStructuredCriterion(
+                id: "lvo",
+                label: "LVO confirmed",
+                detail: "Set on vascular imaging card.",
+                isMet: true
+            ))
+        case .absent:
+            rows.append(EvtStructuredCriterion(
+                id: "lvo",
+                label: "LVO confirmed",
+                detail: "No LVO — EVT not indicated.",
+                isMet: false
+            ))
+        case .unknown:
+            rows.append(EvtStructuredCriterion(
+                id: "lvo",
+                label: "LVO confirmed",
+                detail: "Set LVO status on vascular imaging card.",
+                isMet: nil
+            ))
+        }
+
+        if let mins = minutesSinceLKW {
+            if mins <= 360 {
+                rows.append(EvtStructuredCriterion(
+                    id: "window",
+                    label: "Treatment time window",
+                    detail: "Within standard EVT window (≤6 h from LKW).",
+                    isMet: true
+                ))
+            } else if mins <= 1440 {
+                let ew = extendedWindow ?? .empty
+                let met = suggestsExtendedWindowEVT(minutesSinceLKW: mins)
+                let trialDetail = ew.evtTrialLabelsMet.isEmpty
+                    ? "Complete Extended window card: advanced imaging + DAWN / DEFUSE-3 / large-core criteria."
+                    : "Extended window: " + ew.evtTrialLabelsMet.joined(separator: ", ")
+                rows.append(EvtStructuredCriterion(
+                    id: "window",
+                    label: "Treatment time window",
+                    detail: met ? "6–24 h with imaging selection — \(trialDetail)." : "6–24 h — imaging selection not yet documented (\(trialDetail)).",
+                    isMet: met
+                ))
+            } else {
+                rows.append(EvtStructuredCriterion(
+                    id: "window",
+                    label: "Treatment time window",
+                    detail: "Beyond 24 h from LKW — outside conventional EVT windows.",
+                    isMet: false
+                ))
+            }
+        } else {
+            rows.append(EvtStructuredCriterion(
+                id: "window",
+                label: "Treatment time window",
+                detail: "Capture Last known well on Timeline tab.",
+                isMet: nil
+            ))
+        }
+
+        if let score = aspectsScore {
+            let ew = extendedWindow ?? .empty
+            if score >= 6 {
+                rows.append(EvtStructuredCriterion(
+                    id: "core",
+                    label: "Infarct core / ASPECTS",
+                    detail: "ASPECTS \(score)/10 — favorable for standard EVT.",
+                    isMet: true
+                ))
+            } else if (3...5).contains(score) {
+                rows.append(EvtStructuredCriterion(
+                    id: "core",
+                    label: "Infarct core / ASPECTS",
+                    detail: ew.largeCoreEvtCandidate
+                        ? "ASPECTS \(score)/10 — large-core pathway documented (Extended window card)."
+                        : "ASPECTS \(score)/10 — mark large-core eligibility on Extended window card if applicable.",
+                    isMet: ew.largeCoreEvtCandidate
+                ))
+            } else {
+                rows.append(EvtStructuredCriterion(
+                    id: "core",
+                    label: "Infarct core / ASPECTS",
+                    detail: "ASPECTS \(score)/10 — extensive core; EVT generally not recommended outside trials.",
+                    isMet: false
+                ))
+            }
+        } else {
+            rows.append(EvtStructuredCriterion(
+                id: "core",
+                label: "Infarct core / ASPECTS",
+                detail: "Set ASPECTS in Patient details.",
+                isMet: nil
+            ))
+        }
+
+        switch baselineMRS ?? .unknown {
+        case .mrs0_1:
+            rows.append(EvtStructuredCriterion(
+                id: "mrs",
+                label: "Baseline function",
+                detail: "mRS 0–1 — standard EVT candidacy.",
+                isMet: true
+            ))
+        case .mrs2:
+            rows.append(EvtStructuredCriterion(
+                id: "mrs",
+                label: "Baseline function",
+                detail: "mRS 2 — EVT reasonable in selected patients; individualize.",
+                isMet: true
+            ))
+        case .mrs3plus:
+            rows.append(EvtStructuredCriterion(
+                id: "mrs",
+                label: "Baseline function",
+                detail: "mRS ≥3 — EVT generally not recommended; discuss goals of care.",
+                isMet: false
+            ))
+        case .unknown:
+            rows.append(EvtStructuredCriterion(
+                id: "mrs",
+                label: "Baseline function",
+                detail: "Select baseline mRS below.",
+                isMet: nil
+            ))
+        }
+
+        if let nihss = nihssTotal {
+            let basilar = (lvoSite ?? .unknown) == .basilar
+            let threshold = basilar ? 10 : 6
+            let met = nihss >= threshold
+            rows.append(EvtStructuredCriterion(
+                id: "nihss",
+                label: "Deficit severity (NIHSS)",
+                detail: "NIHSS \(nihss) — threshold ≥\(threshold)\(basilar ? " (basilar)" : "").",
+                isMet: met
+            ))
+        }
+
+        return rows
+    }
+
+    /// Manual EVT checklist items to show (e.g. hide NIHSS question when total captured).
+    func evtManualCriteriaForDisplay() -> [DecisionCriterion] {
+        StrokeCodeDecisionCatalog.evtManual.filter { c in
+            if c.id == "evt.disablingDeficit" { return nihssTotal == nil }
+            return true
+        }
+    }
+
+    /// EVT verdict: structured workflow data + small manual confirm list.
+    func evtVerdict(minutesSinceLKW: Double? = nil) -> CandidacyVerdict {
+        var failedRequired: [String] = []
+        var missing = 0
+
+        for row in evtStructuredCriteria(minutesSinceLKW: minutesSinceLKW) {
+            switch row.isMet {
+            case .some(false): failedRequired.append(row.label)
+            case .none: missing += 1
+            case .some(true): break
+            }
+        }
+
+        for c in evtManualCriteriaForDisplay() {
+            let answer = evtCriteria[c.id] ?? .unknown
+            switch answer {
+            case .unknown: missing += 1
+            case .no: failedRequired.append(c.label)
+            case .yes: break
+            }
+        }
+
+        if !failedRequired.isEmpty {
+            return .ineligibleRequired(failed: failedRequired)
+        }
+        if missing > 0 {
+            return .incomplete(missing: missing)
+        }
+        return .eligible
+    }
+
+    /// Extended-window training verdict from LKW time and imaging toggles.
+    func extendedWindowVerdict(minutesSinceLKW: Double?) -> ExtendedWindowVerdict {
+        (extendedWindow ?? .empty).verdict(minutesSinceLKW: minutesSinceLKW)
+    }
+
+    /// True when LKW is 6–24 h, advanced imaging is done, and at least one
+    /// late-window EVT trial criterion is toggled on.
+    func suggestsExtendedWindowEVT(minutesSinceLKW: Double?) -> Bool {
+        extendedWindowVerdict(minutesSinceLKW: minutesSinceLKW).suggestsEVTDiscussion
+    }
+
+    /// No-op: EVT checklist items are derived from structured workflow data.
+    mutating func applyExtendedWindowEVTChecklistHints(minutesSinceLKW: Double?) {
+        _ = minutesSinceLKW
     }
 }
