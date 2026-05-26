@@ -14,9 +14,8 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 
     /// Languages exposed to the user in the language picker.
-    /// All three languages have full coverage: NIHSS prompts, TTS, speech
-    /// recognition + simple back-translation, and consent script translations.
-    static var visibleToUser: [AppLanguage] { [.english, .spanish, .haitianCreole] }
+    /// Haitian Creole is implemented but hidden until a future release.
+    static var visibleToUser: [AppLanguage] { [.english, .spanish] }
 
     /// Display name for the language picker.
     var displayName: String {

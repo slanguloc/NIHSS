@@ -19,7 +19,7 @@ final class LanguageStore: ObservableObject {
         if let lang = Self.loadEncrypted() ?? Self.loadLegacy() {
             selectedLanguage = lang
         } else {
-            selectedLanguage = .spanish
+            selectedLanguage = AppLanguage.visibleToUser.first ?? .spanish
         }
     }
 
