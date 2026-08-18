@@ -162,7 +162,9 @@ struct StrokeCodeSessionSummaryView: View {
                 if let door = session.doorTime {
                     LabeledContent("Door (t=0)", value: timeOnlyFormatter.string(from: door))
                 }
-                if let lkw = session.lastKnownWell {
+                if session.isLKWUnknown {
+                    LabeledContent("Last Known Well", value: "Unknown")
+                } else if let lkw = session.lastKnownWell {
                     LabeledContent("Last Known Well", value: timeOnlyFormatter.string(from: lkw))
                 }
             }
@@ -279,6 +281,10 @@ struct StrokeCodeSessionSummaryView: View {
                     Text(timeOnlyFormatter.string(from: captured))
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
+                } else if milestone.id == "lkw" && session.isLKWUnknown {
+                    Text("Unknown")
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
                 } else {
                     Text("—")
                         .font(.subheadline)
@@ -350,14 +356,18 @@ struct StrokeCodeSessionSummaryView: View {
             if let n = d.nihssTotal {
                 LabeledContent("NIHSS total", value: "\(n)")
             }
+            if let disabling = d.deficitDisabling, disabling != .unknown {
+                LabeledContent("Mild-stroke deficit", value: disabling.label)
+            }
             if let a = d.aspectsScore {
                 LabeledContent("ASPECTS", value: "\(a) / 10 — \(AspectsCategory(score: a).label)")
             }
+            if let pc = d.pcAspectsScore {
+                LabeledContent("pc-ASPECTS", value: "\(pc) / 10 — \(PcAspectsCategory(score: pc).label)")
+            }
             if let ew = d.extendedWindow, ew.advancedImagingDone {
-                let lkw = session.lastKnownWell
-                let mins = lkw.map { session.completedAt?.timeIntervalSince($0) ?? Date().timeIntervalSince($0) }
-                                .map { $0 / 60.0 }
-                LabeledContent("Extended window", value: ew.verdict(minutesSinceLKW: mins).label)
+                let mins = session.minutesSinceLKW(at: session.completedAt ?? Date())
+                LabeledContent("Extended window", value: ew.verdict(minutesSinceLKW: mins, lkwUnknown: session.isLKWUnknown).label)
             }
             if let ee = d.extendedEarlyIvt {
                 let lkw = session.lastKnownWell
@@ -380,7 +390,7 @@ struct StrokeCodeSessionSummaryView: View {
                 let evtMins = session.lastKnownWell.map {
                     (session.completedAt ?? Date()).timeIntervalSince($0) / 60.0
                 }
-                verdictRow(label: "EVT verdict", verdict: d.evtVerdict(minutesSinceLKW: evtMins))
+                verdictRow(label: "EVT verdict", verdict: d.evtVerdict(minutesSinceLKW: evtMins, lkwUnknown: session.isLKWUnknown))
             }
         }
     }

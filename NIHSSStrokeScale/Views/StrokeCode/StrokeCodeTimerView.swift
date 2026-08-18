@@ -29,6 +29,7 @@ struct StrokeCodeTimerView: View {
     @State private var activeTab: ActiveTab = .timeline
     @State private var revealedFindings: Set<String> = []
     @State private var showNIHSSLauncher = false
+    @State private var expandedMilestoneId: String? = nil
 
     /// Scenario loaded into the active session, if any.
     private var loadedScenario: StrokeCodeScenario? {
@@ -84,6 +85,7 @@ struct StrokeCodeTimerView: View {
                     revealedFindings.removeAll()
                     draftNotes = ""
                     activeTab = .timeline
+                    expandedMilestoneId = store.active?.nextPendingMilestone()?.id ?? "lkw"
                 })
                 .environmentObject(store)
             }
@@ -100,6 +102,8 @@ struct StrokeCodeTimerView: View {
             NIHSSFromStrokeCodeView { total in
                 store.capture(milestoneId: "nihssDone")
                 store.mutateDecisions { $0.nihssTotal = total }
+                store.applyDisablingDeficitHintsIfApplicable()
+                advanceToNextPending()
             }
         }
     }
@@ -130,6 +134,7 @@ struct StrokeCodeTimerView: View {
                     draftNotes = ""
                     activeTab = .timeline
                     revealedFindings.removeAll()
+                    expandedMilestoneId = "lkw"
                 } label: {
                     Label("Start stroke code (training)", systemImage: "play.fill")
                         .font(.headline)
@@ -182,28 +187,37 @@ struct StrokeCodeTimerView: View {
             .background(Color(.systemBackground))
 
             ScrollView {
-                VStack(spacing: 12) {
-                    if store.isEditingExisting {
-                        editingIndicator
-                    }
-                    switch activeTab {
-                    case .timeline:
-                        disclaimerBanner
-                        patientStripCard
-                        if let scenario = loadedScenario {
-                            caseBriefingCard(scenario)
+                ScrollViewReader { proxy in
+                    VStack(spacing: 12) {
+                        if store.isEditingExisting {
+                            editingIndicator
                         }
-                        liveClockCard
-                        milestonesList
-                        notesCard
-                        educationalFooter
-                            .padding(.top, 12)
-                    case .decisions:
-                        StrokeCodeDecisionView()
+                        switch activeTab {
+                        case .timeline:
+                            disclaimerBanner
+                            patientStripCard
+                            if let scenario = loadedScenario {
+                                caseBriefingCard(scenario)
+                            }
+                            liveClockCard
+                            timePointNavigator(proxy: proxy)
+                            milestonesList
+                            notesCard
+                            educationalFooter
+                                .padding(.top, 12)
+                        case .decisions:
+                            StrokeCodeDecisionView()
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .onChange(of: expandedMilestoneId) { id in
+                        guard let id else { return }
+                        withAnimation {
+                            proxy.scrollTo(id, anchor: .center)
+                        }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -292,6 +306,9 @@ struct StrokeCodeTimerView: View {
             if draftNotes.isEmpty, let n = store.active?.notes {
                 draftNotes = n
             }
+            if store.active != nil, expandedMilestoneId == nil {
+                expandedMilestoneId = store.active?.nextPendingMilestone()?.id
+            }
         }
     }
 
@@ -303,6 +320,7 @@ struct StrokeCodeTimerView: View {
             let session = store.active
             let door = session?.doorTime
             let lkw = session?.lastKnownWell
+            let lkwUnknown = session?.isLKWUnknown == true
 
             VStack(spacing: 10) {
                 HStack {
@@ -324,9 +342,13 @@ struct StrokeCodeTimerView: View {
                     )
                     clockTile(
                         title: "From LKW",
-                        value: lkw.map { StrokeCodeStore.format(elapsed: now.timeIntervalSince($0)) } ?? "—",
-                        subtitle: lkw == nil ? "Tap LKW to set anchor" : treatmentWindowHint(elapsed: now.timeIntervalSince(lkw ?? now)),
-                        color: lkw == nil ? .secondary : .blue
+                        value: lkwUnknown
+                            ? "Unknown"
+                            : (lkw.map { StrokeCodeStore.format(elapsed: now.timeIntervalSince($0)) } ?? "—"),
+                        subtitle: lkwUnknown
+                            ? "Use imaging selection (wake-up / found down)"
+                            : (lkw == nil ? "Set LKW or mark unknown" : treatmentWindowHint(elapsed: now.timeIntervalSince(lkw ?? now))),
+                        color: lkwUnknown ? .orange : (lkw == nil ? .secondary : .blue)
                     )
                 }
             }
@@ -364,17 +386,131 @@ struct StrokeCodeTimerView: View {
         return "Beyond standard windows"
     }
 
+    // MARK: - Time-point navigator
+
+    private func timePointNavigator(proxy: ScrollViewProxy) -> some View {
+        let session = store.active
+        let capturedCount = milestones.filter { session?.isComplete($0) == true }.count
+        let next = session?.nextPendingMilestone()
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Time points")
+                    .font(.headline)
+                Spacer()
+                Text("\(capturedCount) of \(milestones.count) marked")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            if let next {
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Next")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(next.label)
+                            .font(.subheadline.bold())
+                    }
+                    Spacer(minLength: 0)
+                    if next.id == "lkw" {
+                        Button {
+                            store.markLKWUnknown()
+                            advanceToNextPending()
+                        } label: {
+                            Text("Unknown")
+                                .font(.caption.bold())
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    Button {
+                        store.capture(milestoneId: next.id)
+                        advanceToNextPending()
+                    } label: {
+                        Label("Mark now", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.bold())
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(next.isAnchor ? .blue : .red)
+                    .controlSize(.small)
+                }
+            } else {
+                Label("All time points marked", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    let currentId = expandedMilestoneId ?? next?.id
+                    if let currentId, let prev = session?.previousPendingMilestone(before: currentId) {
+                        expandedMilestoneId = prev.id
+                    } else if let next {
+                        expandedMilestoneId = next.id
+                    }
+                    if let id = expandedMilestoneId {
+                        withAnimation { proxy.scrollTo(id, anchor: .center) }
+                    }
+                } label: {
+                    Label("Previous pending", systemImage: "chevron.up")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(session?.nextPendingMilestone() == nil)
+
+                Button {
+                    if let next {
+                        expandedMilestoneId = next.id
+                        withAnimation { proxy.scrollTo(next.id, anchor: .center) }
+                    }
+                } label: {
+                    Label("Jump to next", systemImage: "chevron.down")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(next == nil)
+
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func advanceToNextPending() {
+        expandedMilestoneId = store.active?.nextPendingMilestone()?.id
+    }
+
     // MARK: - Milestones list
 
     private var milestonesList: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Milestones")
-                    .font(.headline)
-                Spacer()
+        let grouped: [(String, [StrokeCodeMilestone])] = {
+            var result: [(String, [StrokeCodeMilestone])] = []
+            for m in milestones {
+                if result.last?.0 == m.sectionTitle {
+                    result[result.count - 1].1.append(m)
+                } else {
+                    result.append((m.sectionTitle, [m]))
+                }
             }
-            ForEach(milestones) { milestone in
-                milestoneRow(milestone)
+            return result
+        }()
+
+        return VStack(spacing: 14) {
+            ForEach(grouped, id: \.0) { section, items in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(section)
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    ForEach(items) { milestone in
+                        milestoneRow(milestone)
+                            .id(milestone.id)
+                    }
+                }
             }
         }
     }
@@ -382,6 +518,8 @@ struct StrokeCodeTimerView: View {
     private func milestoneRow(_ milestone: StrokeCodeMilestone) -> some View {
         let session = store.active
         let captured = session?.timestamp(for: milestone.id)
+        let lkwUnknown = milestone.id == "lkw" && session?.isLKWUnknown == true
+        let complete = session?.isComplete(milestone) == true
         let status = session?.status(for: milestone) ?? .notCaptured
         let referenceTime = session?.referenceTime(for: milestone)
         let elapsedText: String? = {
@@ -390,88 +528,172 @@ struct StrokeCodeTimerView: View {
             }
             return nil
         }()
+        let expanded = expandedMilestoneId == milestone.id
+        let isNext = session?.nextPendingMilestone()?.id == milestone.id
 
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        if milestone.isAnchor {
-                            Image(systemName: "flag.fill")
-                                .font(.caption)
-                                .foregroundStyle(.blue)
+            HStack(alignment: .center, spacing: 8) {
+                Button {
+                    expandedMilestoneId = expanded ? nil : milestone.id
+                } label: {
+                    HStack(alignment: .center, spacing: 8) {
+                        Image(systemName: complete
+                              ? "checkmark.circle.fill"
+                              : (isNext ? "circle.inset.filled" : "circle"))
+                            .foregroundStyle(complete ? .green : (isNext ? .red : .secondary))
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                if milestone.isAnchor {
+                                    Image(systemName: "flag.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.blue)
+                                }
+                                Text(milestone.shortLabel)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                            }
+                            if complete {
+                                if lkwUnknown {
+                                    Text("Unknown LKW")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                } else if let captured {
+                                    HStack(spacing: 6) {
+                                        Text(timeOfDay(captured))
+                                            .font(.caption.monospacedDigit())
+                                        if let elapsedText, !milestone.isAnchor {
+                                            Text(elapsedText)
+                                                .font(.caption.monospacedDigit().bold())
+                                                .foregroundStyle(color(for: status))
+                                        }
+                                    }
+                                    .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                targetSubtitle(for: milestone)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        Text(milestone.label)
-                            .font(.body.weight(.semibold))
+                        Spacer(minLength: 0)
+                        if complete {
+                            statusBadge(status, milestone: milestone, lkwUnknown: lkwUnknown)
+                        }
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
-                    targetSubtitle(for: milestone)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
-                Spacer()
-                statusBadge(status, milestone: milestone)
-            }
+                .buttonStyle(.plain)
 
-            Text(milestone.helpText)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.leading)
-
-            HStack(spacing: 8) {
-                if let captured {
-                    Label(timeOfDay(captured), systemImage: "clock")
-                        .font(.subheadline.monospacedDigit())
-                    if let elapsedText, !milestone.isAnchor {
-                        Text(elapsedText)
-                            .font(.subheadline.monospacedDigit().bold())
-                            .foregroundStyle(color(for: status))
-                    }
-                    Spacer()
-                    Button {
-                        manualDate = captured
-                        manualMilestone = milestone
-                    } label: {
-                        Image(systemName: "pencil")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    Button(role: .destructive) {
-                        store.clear(milestoneId: milestone.id)
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                } else {
+                if !complete {
                     Button {
                         store.capture(milestoneId: milestone.id)
+                        advanceToNextPending()
                     } label: {
-                        Label("Now", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.bold())
+                        Text("Now")
+                            .font(.caption.bold())
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(milestone.isAnchor ? .blue : .red)
-                    .controlSize(.small)
-
-                    Button {
-                        manualDate = Date()
-                        manualMilestone = milestone
-                    } label: {
-                        Label("Set time…", systemImage: "calendar.badge.clock")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    Spacer()
+                    .controlSize(.mini)
                 }
             }
 
-            if milestone.id == "nihssDone" {
+            if expanded {
+                Text(milestone.helpText)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.leading)
+
+                HStack(spacing: 8) {
+                    if complete {
+                        if let captured, !lkwUnknown {
+                            Label(timeOfDay(captured), systemImage: "clock")
+                                .font(.subheadline.monospacedDigit())
+                        }
+                        Spacer()
+                        if milestone.id == "lkw", !lkwUnknown {
+                            Button {
+                                store.markLKWUnknown()
+                                advanceToNextPending()
+                            } label: {
+                                Text("Unknown")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        if !lkwUnknown {
+                            Button {
+                                manualDate = captured ?? Date()
+                                manualMilestone = milestone
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        Button(role: .destructive) {
+                            store.clear(milestoneId: milestone.id)
+                            expandedMilestoneId = milestone.id
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Button {
+                            store.capture(milestoneId: milestone.id)
+                            advanceToNextPending()
+                        } label: {
+                            Label("Now", systemImage: "checkmark.circle.fill")
+                                .font(.subheadline.bold())
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(milestone.isAnchor ? .blue : .red)
+                        .controlSize(.small)
+
+                        Button {
+                            manualDate = Date()
+                            manualMilestone = milestone
+                        } label: {
+                            Label("Set time…", systemImage: "calendar.badge.clock")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        if milestone.id == "lkw" {
+                            Button {
+                                store.markLKWUnknown()
+                                advanceToNextPending()
+                            } label: {
+                                Label("Unknown", systemImage: "questionmark.circle")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        Spacer()
+                    }
+                }
+
+                if milestone.id == "nihssDone" {
+                    nihssLauncherRow
+                }
+            }
+
+            if milestone.id == "nihssDone", !expanded {
                 nihssLauncherRow
             }
         }
-        .padding(12)
-        .background(Color(.secondarySystemBackground))
+        .padding(10)
+        .background(isNext ? Color.red.opacity(0.08) : Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isNext ? Color.red.opacity(0.35) : Color.clear, lineWidth: 1)
+        )
     }
 
     /// Inline launcher row shown under the NIHSS milestone. Opens the NIHSS
@@ -538,8 +760,13 @@ struct StrokeCodeTimerView: View {
         return Text("\(reference) + ≤\(t.targetMinutes) min")
     }
 
-    private func statusBadge(_ status: StrokeCodeTargetStatus, milestone: StrokeCodeMilestone) -> some View {
+    private func statusBadge(_ status: StrokeCodeTargetStatus,
+                             milestone: StrokeCodeMilestone,
+                             lkwUnknown: Bool = false) -> some View {
         let (text, fg, bg): (String, Color, Color) = {
+            if lkwUnknown {
+                return ("Unknown", .white, .orange)
+            }
             switch status {
             case .notCaptured:
                 return (milestone.isAnchor ? "Anchor" : "Pending", .secondary, Color(.tertiarySystemFill))
@@ -596,6 +823,13 @@ struct StrokeCodeTimerView: View {
             Form {
                 Section(milestone.label) {
                     DatePicker("Time", selection: $manualDate, displayedComponents: [.date, .hourAndMinute])
+                    if milestone.id == "lkw" {
+                        Button("Mark LKW unknown") {
+                            store.markLKWUnknown()
+                            manualMilestone = nil
+                            advanceToNextPending()
+                        }
+                    }
                 }
                 Section {
                     Text(milestone.helpText)
@@ -613,6 +847,7 @@ struct StrokeCodeTimerView: View {
                     Button("Set") {
                         store.capture(milestoneId: milestone.id, at: manualDate)
                         manualMilestone = nil
+                        advanceToNextPending()
                     }
                 }
             }
@@ -647,6 +882,7 @@ struct StrokeCodeTimerView: View {
         let weight = decisions?.weightKg
         let nihss = decisions?.nihssTotal
         let aspects = decisions?.aspectsScore ?? 10
+        let pcAspects = decisions?.pcAspectsScore
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -669,6 +905,14 @@ struct StrokeCodeTimerView: View {
                     .padding(.vertical, 2)
                     .background(Color.orange.opacity(0.12))
                     .clipShape(Capsule())
+                if let pc = pcAspects {
+                    Label("pc-ASPECTS \(pc)", systemImage: "hexagon")
+                        .font(.caption.monospacedDigit().bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.purple.opacity(0.12))
+                        .clipShape(Capsule())
+                }
             }
 
             HStack(spacing: 10) {

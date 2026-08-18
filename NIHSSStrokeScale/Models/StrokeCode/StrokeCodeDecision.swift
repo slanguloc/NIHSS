@@ -136,15 +136,23 @@ enum LvoSite: String, Codable, CaseIterable, Equatable {
         case .m3:
             return "M3 / distal MeVO — EVT may be considered (Class IIb). Recent trials (ESCAPE-MeVO, DISTAL, DISCOUNT) showed mixed benefit; weigh risks."
         case .basilar:
-            return "Basilar occlusion — EVT improves outcomes within 24 h in selected patients (BAOCHE, ATTENTION). Use NIHSS ≥ 10 threshold."
+            return "Basilar occlusion — EVT improves outcomes within 24 h in selected patients (BAOCHE, ATTENTION). Use NIHSS ≥ 10 threshold and pc-ASPECTS (typically ≥ 6)."
         case .pca:
-            return "Posterior cerebral artery — emerging evidence; EVT may be considered for disabling deficits (Class IIb)."
+            return "Posterior cerebral artery — emerging evidence; EVT may be considered for disabling deficits (Class IIb). Score infarct core with pc-ASPECTS."
         case .aca:
             return "Anterior cerebral artery — insufficient RCT data; individualize."
         case .tandem:
             return "Tandem cervical ICA + intracranial — EVT reasonable; acute cervical stenting decision is individualized."
         case .other:
-            return "Other / VA occlusion — insufficient evidence base; individualize via stroke / neuro-IR consult."
+            return "Other / VA occlusion — insufficient evidence base; individualize via stroke / neuro-IR consult. Use pc-ASPECTS for posterior-circulation infarct core."
+        }
+    }
+
+    /// True when posterior-circulation ASPECTS (pc-ASPECTS) is the appropriate core score.
+    var usesPcAspects: Bool {
+        switch self {
+        case .basilar, .pca, .other: return true
+        default: return false
         }
     }
 }
@@ -196,6 +204,23 @@ enum BaselineMRS: String, Codable, CaseIterable, Equatable {
             return "EVT reasonable in selected patients (Class IIa/IIb per 2026 update). Weigh ASCVD burden and goals of care."
         case .mrs3plus:
             return "EVT generally NOT recommended outside select cases / shared decision-making. Discuss goals of care."
+        }
+    }
+}
+
+/// Whether a mild (NIHSS 0–5) deficit is judged disabling. Drives IVT/EVT
+/// training suggestions per AHA/ASA (PRISMS: IV alteplase is not recommended
+/// for mild *non-disabling* stroke).
+enum DeficitDisablingStatus: String, Codable, CaseIterable, Equatable {
+    case unknown
+    case disabling
+    case nonDisabling
+
+    var label: String {
+        switch self {
+        case .unknown: return "Not classified"
+        case .disabling: return "Disabling"
+        case .nonDisabling: return "Non-disabling"
         }
     }
 }
@@ -427,6 +452,15 @@ struct DecisionState: Codable, Equatable {
     /// means not assessed. Optional for backward compatibility.
     var aspectsScore: Int? = nil
 
+    /// Posterior-circulation ASPECTS (pc-ASPECTS), 0–10. Used when the
+    /// occlusion is in the vertebrobasilar / PCA territory. Optional for
+    /// backward compatibility.
+    var pcAspectsScore: Int? = nil
+
+    /// Mild-stroke disabling classification (NIHSS 0–5). Optional for
+    /// backward compatibility; treated as `.unknown` when nil.
+    var deficitDisabling: DeficitDisablingStatus? = nil
+
     /// Extended-window (late presentation / wake-up) eligibility responses.
     /// Optional decoded value for backward compatibility with older saves;
     /// always normalized to a non-nil struct on read.
@@ -591,6 +625,60 @@ enum AspectsCategory: Equatable {
     }
 }
 
+// MARK: - pc-ASPECTS categorization (training)
+
+/// Training-only categorization of posterior-circulation ASPECTS (pc-ASPECTS).
+/// Aligned with Puetz et al. and the BAOCHE / ATTENTION basilar-occlusion
+/// trials (typically pc-ASPECTS ≥ 6). Educational summary, not a clinical
+/// decision tool.
+enum PcAspectsCategory: Equatable {
+    case notAssessed
+    case favorable        // 8–10
+    case borderline       // 6–7
+    case extensive        // 0–5
+
+    init(score: Int?) {
+        guard let s = score else { self = .notAssessed; return }
+        switch s {
+        case 8...10: self = .favorable
+        case 6...7:  self = .borderline
+        case 0...5:  self = .extensive
+        default:     self = .notAssessed
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .notAssessed: return "Not assessed"
+        case .favorable:   return "Favorable (8–10)"
+        case .borderline:  return "Borderline (6–7)"
+        case .extensive:   return "Extensive (0–5)"
+        }
+    }
+
+    var evtTrainingNote: String {
+        switch self {
+        case .notAssessed:
+            return "Capture pc-ASPECTS for vertebrobasilar / PCA occlusions to display EVT-eligibility training notes."
+        case .favorable:
+            return "Favorable posterior-circulation core. Basilar EVT candidacy supported in selected patients (BAOCHE, ATTENTION)."
+        case .borderline:
+            return "pc-ASPECTS 6–7 — within the enrollment range of BAOCHE / ATTENTION (≥ 6). Verify with neuroradiology; weigh age and NIHSS."
+        case .extensive:
+            return "Extensive posterior-circulation infarct (pc-ASPECTS ≤ 5). EVT is generally not recommended; continue best medical management."
+        }
+    }
+
+    var ivtTrainingNote: String {
+        switch self {
+        case .extensive:
+            return "Extensive early ischemic change in the posterior circulation is a relative IVT caution. Confirm imaging interpretation; individualize."
+        default:
+            return "pc-ASPECTS does not strictly exclude IV thrombolysis. Standard inclusion/exclusion criteria apply."
+        }
+    }
+}
+
 // MARK: - Extended-window verdict (training)
 
 /// Categorical outcome for the late-window training card.
@@ -623,7 +711,19 @@ enum ExtendedWindowVerdict: Equatable {
 extension ExtendedWindowState {
     /// Compares time-since-LKW (minutes) to relevant windows to summarize
     /// extended-window training candidacy.
-    func verdict(minutesSinceLKW: Double?) -> ExtendedWindowVerdict {
+    func verdict(minutesSinceLKW: Double?, lkwUnknown: Bool = false) -> ExtendedWindowVerdict {
+        if lkwUnknown {
+            guard advancedImagingDone else { return .notApplicable }
+            let ivtMet = dwiFlairMismatch || perfusionMismatchIvt
+            let evtMet = dawnMismatch || defuse3Mismatch || largeCoreEvtCandidate
+            switch (ivtMet, evtMet) {
+            case (true, true):  return .bothCandidate
+            case (true, false): return .ivtCandidate
+            case (false, true): return .evtCandidate
+            case (false, false): return .noCriteriaMet
+            }
+        }
+
         // No LKW captured yet → nothing to evaluate.
         guard let mins = minutesSinceLKW else { return .notApplicable }
 
@@ -665,7 +765,7 @@ enum StrokeCodeDecisionCatalog {
         DecisionCriterion(
             id: "ivt.dxIschemicStroke",
             label: "Acute ischemic stroke with measurable, disabling deficit",
-            helpText: "Clinical diagnosis of ischemic stroke causing a measurable, potentially disabling neurologic deficit on exam.",
+            helpText: "Clinical diagnosis of ischemic stroke causing a measurable deficit. For NIHSS 0–5, IV alteplase is recommended only if the deficit is disabling (Class I). Mild non-disabling symptoms (NIHSS 0–5) are a Class III: No Benefit recommendation (PRISMS) — do not treat with IVT. Auto-filled from the mild-stroke classification when still unanswered.",
             polarity: .mustBeYes,
             group: "Required"
         ),
@@ -679,7 +779,7 @@ enum StrokeCodeDecisionCatalog {
         DecisionCriterion(
             id: "ivt.windowLKW45h",
             label: "Within 4.5 hours of Last Known Well (or extended-window eligible)",
-            helpText: "Auto-filled from Last known well on the Timeline when still unanswered. Standard window ≤4.5 h; 4.5–9 h requires Extended window imaging criteria (WAKE-UP / EXTEND). You may override Yes/No.",
+            helpText: "Auto-filled from Last known well on the Timeline when still unanswered. Standard window ≤4.5 h; 4.5–9 h or unknown LKW requires Extended window imaging criteria (WAKE-UP / EXTEND). You may override Yes/No.",
             polarity: .mustBeYes,
             group: "Required"
         ),
@@ -791,7 +891,7 @@ enum StrokeCodeDecisionCatalog {
         DecisionCriterion(
             id: "evt.disablingDeficit",
             label: "Disabling neurologic deficit on exam",
-            helpText: "Shown when NIHSS total is not captured. Typically NIHSS ≥6 (≥10 for basilar LVO).",
+            helpText: "Shown when NIHSS is not captured. For NIHSS 0–5, classify disabling vs non-disabling in Patient details. NIHSS ≥ 6 typically meets the deficit threshold (NIHSS ≥ 10 for basilar LVO).",
             polarity: .mustBeYes,
             group: "Confirm"
         )
@@ -890,9 +990,18 @@ extension DecisionState {
 
     /// Training assessment of IV thrombolysis time window from LKW and,
     /// when applicable, extended-window imaging toggles.
-    func ivtTimeWindowAssessment(minutesSinceLKW: Double?) -> (met: Bool?, detail: String) {
+    func ivtTimeWindowAssessment(minutesSinceLKW: Double?, lkwUnknown: Bool = false) -> (met: Bool?, detail: String) {
+        if lkwUnknown {
+            let ew = extendedWindow ?? .empty
+            let extendedMet = ew.advancedImagingDone &&
+                (ew.dwiFlairMismatch || ew.perfusionMismatchIvt)
+            if extendedMet {
+                return (true, "LKW unknown — extended IV window with imaging selection documented (WAKE-UP / EXTEND).")
+            }
+            return (nil, "LKW unknown (e.g., found down). Complete Extended window imaging (DWI-FLAIR or perfusion mismatch) to assess IV eligibility.")
+        }
         guard let mins = minutesSinceLKW else {
-            return (nil, "Capture Last known well on the Timeline tab.")
+            return (nil, "Capture Last known well on the Timeline tab, or mark LKW unknown.")
         }
         let elapsed = Self.formatMinutesSinceLKW(mins)
         if mins < 0 {
@@ -914,12 +1023,49 @@ extension DecisionState {
     }
 
     /// Sets `ivt.windowLKW45h` from LKW timing. Only fills when still unknown.
-    mutating func applyIVTTimeWindowFromLKW(minutesSinceLKW: Double?) {
-        let assessment = ivtTimeWindowAssessment(minutesSinceLKW: minutesSinceLKW)
+    mutating func applyIVTTimeWindowFromLKW(minutesSinceLKW: Double?, lkwUnknown: Bool = false) {
+        let assessment = ivtTimeWindowAssessment(minutesSinceLKW: minutesSinceLKW, lkwUnknown: lkwUnknown)
         guard let met = assessment.met else { return }
         let current = ivtCriteria["ivt.windowLKW45h"] ?? .unknown
         guard current == .unknown else { return }
         ivtCriteria["ivt.windowLKW45h"] = met ? .yes : .no
+    }
+
+    /// AHA/ASA mild-stroke band for the PRISMS / non-disabling IVT recommendation (NIHSS 0–5 inclusive).
+    static let mildNihssMax = 5
+
+    var isMildNihssBand: Bool? {
+        guard let n = nihssTotal else { return nil }
+        return n <= Self.mildNihssMax
+    }
+
+    /// Training assessment of whether the deficit is disabling for IVT.
+    /// NIHSS > 5 is treated as potentially disabling by score. NIHSS 0–5
+    /// (or unscored) requires the explicit disabling classification.
+    func ivtDisablingAssessment() -> (met: Bool?, detail: String) {
+        if let n = nihssTotal, n > Self.mildNihssMax {
+            return (true, "NIHSS \(n) (>5) — deficit generally considered potentially disabling by score.")
+        }
+        let nLabel = nihssTotal.map { "NIHSS \($0) (≤5, mild). " } ?? "NIHSS not captured. "
+        switch deficitDisabling ?? .unknown {
+        case .disabling:
+            return (true, "\(nLabel)Symptoms judged disabling — IV alteplase is recommended (Class I) despite mild NIHSS.")
+        case .nonDisabling:
+            return (false, "\(nLabel)Mild non-disabling symptoms — IV alteplase is not recommended (Class III: No Benefit, PRISMS).")
+        case .unknown:
+            return (nil, "\(nLabel)Classify whether the deficit is disabling. Isolated facial droop, isolated mild dysarthria, or isolated sensory change are typically non-disabling; aphasia, hemianopia, neglect, or weakness that limits walking or hand use are typically disabling.")
+        }
+    }
+
+    /// Sets `ivt.dxIschemicStroke` from NIHSS and the mild-stroke classification
+    /// when that checklist item is still unanswered. Pass `overwrite: true` when
+    /// the trainee just changed the disabling classification.
+    mutating func applyIVTDisablingFromCapturedDeficit(overwrite: Bool = false) {
+        let assessment = ivtDisablingAssessment()
+        guard let met = assessment.met else { return }
+        let current = ivtCriteria["ivt.dxIschemicStroke"] ?? .unknown
+        if current != .unknown && !overwrite { return }
+        ivtCriteria["ivt.dxIschemicStroke"] = met ? .yes : .no
     }
 
     private static func formatMinutesSinceLKW(_ totalMins: Double) -> String {
@@ -931,7 +1077,7 @@ extension DecisionState {
 
     /// Rows derived from data entered on other decision cards (not re-asked
     /// as yes/no checklist items).
-    func evtStructuredCriteria(minutesSinceLKW: Double?) -> [EvtStructuredCriterion] {
+    func evtStructuredCriteria(minutesSinceLKW: Double?, lkwUnknown: Bool = false) -> [EvtStructuredCriterion] {
         var rows: [EvtStructuredCriterion] = []
 
         switch lvoStatus {
@@ -958,7 +1104,21 @@ extension DecisionState {
             ))
         }
 
-        if let mins = minutesSinceLKW {
+        if lkwUnknown {
+            let ew = extendedWindow ?? .empty
+            let met = suggestsExtendedWindowEVT(minutesSinceLKW: nil, lkwUnknown: true)
+            let trialDetail = ew.evtTrialLabelsMet.isEmpty
+                ? "Complete Extended window card: advanced imaging + DAWN / DEFUSE-3 / large-core criteria."
+                : "Extended window: " + ew.evtTrialLabelsMet.joined(separator: ", ")
+            rows.append(EvtStructuredCriterion(
+                id: "window",
+                label: "Treatment time window",
+                detail: met
+                    ? "LKW unknown — imaging selection documented (\(trialDetail))."
+                    : "LKW unknown — \(trialDetail)",
+                isMet: met ? true : nil
+            ))
+        } else if let mins = minutesSinceLKW {
             if mins <= 360 {
                 rows.append(EvtStructuredCriterion(
                     id: "window",
@@ -968,7 +1128,7 @@ extension DecisionState {
                 ))
             } else if mins <= 1440 {
                 let ew = extendedWindow ?? .empty
-                let met = suggestsExtendedWindowEVT(minutesSinceLKW: mins)
+                let met = suggestsExtendedWindowEVT(minutesSinceLKW: mins, lkwUnknown: false)
                 let trialDetail = ew.evtTrialLabelsMet.isEmpty
                     ? "Complete Extended window card: advanced imaging + DAWN / DEFUSE-3 / large-core criteria."
                     : "Extended window: " + ew.evtTrialLabelsMet.joined(separator: ", ")
@@ -990,12 +1150,37 @@ extension DecisionState {
             rows.append(EvtStructuredCriterion(
                 id: "window",
                 label: "Treatment time window",
-                detail: "Capture Last known well on Timeline tab.",
+                detail: "Capture Last known well on Timeline tab, or mark LKW unknown.",
                 isMet: nil
             ))
         }
 
-        if let score = aspectsScore {
+        let posterior = (lvoSite ?? .unknown).usesPcAspects
+        if posterior {
+            if let score = pcAspectsScore {
+                let category = PcAspectsCategory(score: score)
+                let met: Bool? = {
+                    switch category {
+                    case .favorable, .borderline: return true
+                    case .extensive: return false
+                    case .notAssessed: return nil
+                    }
+                }()
+                rows.append(EvtStructuredCriterion(
+                    id: "core",
+                    label: "Infarct core / pc-ASPECTS",
+                    detail: "pc-ASPECTS \(score)/10 — \(category.label). \(category.evtTrainingNote)",
+                    isMet: met
+                ))
+            } else {
+                rows.append(EvtStructuredCriterion(
+                    id: "core",
+                    label: "Infarct core / pc-ASPECTS",
+                    detail: "Posterior-circulation LVO — set pc-ASPECTS in Patient details.",
+                    isMet: nil
+                ))
+            }
+        } else if let score = aspectsScore {
             let ew = extendedWindow ?? .empty
             if score >= 6 {
                 rows.append(EvtStructuredCriterion(
@@ -1061,35 +1246,98 @@ extension DecisionState {
             ))
         }
 
-        if let nihss = nihssTotal {
-            let basilar = (lvoSite ?? .unknown) == .basilar
-            let threshold = basilar ? 10 : 6
-            let met = nihss >= threshold
-            rows.append(EvtStructuredCriterion(
-                id: "nihss",
-                label: "Deficit severity (NIHSS)",
-                detail: "NIHSS \(nihss) — threshold ≥\(threshold)\(basilar ? " (basilar)" : "").",
-                isMet: met
-            ))
-        }
+        rows.append(evtNihssStructuredRow())
 
         return rows
     }
 
-    /// Manual EVT checklist items to show (e.g. hide NIHSS question when total captured).
+    private func evtNihssStructuredRow() -> EvtStructuredCriterion {
+        let basilar = (lvoSite ?? .unknown) == .basilar
+        if let nihss = nihssTotal {
+            if basilar {
+                let met = nihss >= 10
+                return EvtStructuredCriterion(
+                    id: "nihss",
+                    label: "Deficit severity (NIHSS)",
+                    detail: "NIHSS \(nihss) — basilar threshold ≥ 10 (ATTENTION / BAOCHE).",
+                    isMet: met
+                )
+            }
+            if nihss > Self.mildNihssMax {
+                return EvtStructuredCriterion(
+                    id: "nihss",
+                    label: "Deficit severity (NIHSS)",
+                    detail: "NIHSS \(nihss) (>5) — typical EVT deficit threshold met.",
+                    isMet: true
+                )
+            }
+            switch deficitDisabling ?? .unknown {
+            case .disabling:
+                return EvtStructuredCriterion(
+                    id: "nihss",
+                    label: "Deficit severity (NIHSS)",
+                    detail: "NIHSS \(nihss) (≤5) with disabling deficit — EVT may be reasonable (Class IIb) even below the historic NIHSS ≥ 6 cutoff.",
+                    isMet: true
+                )
+            case .nonDisabling:
+                return EvtStructuredCriterion(
+                    id: "nihss",
+                    label: "Deficit severity (NIHSS)",
+                    detail: "NIHSS \(nihss) (≤5) non-disabling — reperfusion generally not indicated (PRISMS / Class III for IVT).",
+                    isMet: false
+                )
+            case .unknown:
+                return EvtStructuredCriterion(
+                    id: "nihss",
+                    label: "Deficit severity (NIHSS)",
+                    detail: "NIHSS \(nihss) (≤5, mild). Classify disabling vs non-disabling in Patient details — NIHSS 5 is still in the mild band.",
+                    isMet: nil
+                )
+            }
+        }
+        switch deficitDisabling ?? .unknown {
+        case .disabling:
+            return EvtStructuredCriterion(
+                id: "nihss",
+                label: "Deficit severity (NIHSS)",
+                detail: "NIHSS not captured; deficit classified as disabling.",
+                isMet: true
+            )
+        case .nonDisabling:
+            return EvtStructuredCriterion(
+                id: "nihss",
+                label: "Deficit severity (NIHSS)",
+                detail: "NIHSS not captured; deficit classified as non-disabling.",
+                isMet: false
+            )
+        case .unknown:
+            return EvtStructuredCriterion(
+                id: "nihss",
+                label: "Deficit severity (NIHSS)",
+                detail: "Capture NIHSS or classify disabling vs non-disabling in Patient details.",
+                isMet: nil
+            )
+        }
+    }
+
+    /// Manual EVT checklist items to show (hide when NIHSS or disabling status already drives the row).
     func evtManualCriteriaForDisplay() -> [DecisionCriterion] {
         StrokeCodeDecisionCatalog.evtManual.filter { c in
-            if c.id == "evt.disablingDeficit" { return nihssTotal == nil }
+            if c.id == "evt.disablingDeficit" {
+                if nihssTotal != nil { return false }
+                if (deficitDisabling ?? .unknown) != .unknown { return false }
+                return true
+            }
             return true
         }
     }
 
     /// EVT verdict: structured workflow data + small manual confirm list.
-    func evtVerdict(minutesSinceLKW: Double? = nil) -> CandidacyVerdict {
+    func evtVerdict(minutesSinceLKW: Double? = nil, lkwUnknown: Bool = false) -> CandidacyVerdict {
         var failedRequired: [String] = []
         var missing = 0
 
-        for row in evtStructuredCriteria(minutesSinceLKW: minutesSinceLKW) {
+        for row in evtStructuredCriteria(minutesSinceLKW: minutesSinceLKW, lkwUnknown: lkwUnknown) {
             switch row.isMet {
             case .some(false): failedRequired.append(row.label)
             case .none: missing += 1
@@ -1116,14 +1364,14 @@ extension DecisionState {
     }
 
     /// Extended-window training verdict from LKW time and imaging toggles.
-    func extendedWindowVerdict(minutesSinceLKW: Double?) -> ExtendedWindowVerdict {
-        (extendedWindow ?? .empty).verdict(minutesSinceLKW: minutesSinceLKW)
+    func extendedWindowVerdict(minutesSinceLKW: Double?, lkwUnknown: Bool = false) -> ExtendedWindowVerdict {
+        (extendedWindow ?? .empty).verdict(minutesSinceLKW: minutesSinceLKW, lkwUnknown: lkwUnknown)
     }
 
-    /// True when LKW is 6–24 h, advanced imaging is done, and at least one
-    /// late-window EVT trial criterion is toggled on.
-    func suggestsExtendedWindowEVT(minutesSinceLKW: Double?) -> Bool {
-        extendedWindowVerdict(minutesSinceLKW: minutesSinceLKW).suggestsEVTDiscussion
+    /// True when late-window EVT trial criteria are documented (6–24 h from LKW,
+    /// or unknown LKW with imaging selection).
+    func suggestsExtendedWindowEVT(minutesSinceLKW: Double?, lkwUnknown: Bool = false) -> Bool {
+        extendedWindowVerdict(minutesSinceLKW: minutesSinceLKW, lkwUnknown: lkwUnknown).suggestsEVTDiscussion
     }
 
     /// No-op: EVT checklist items are derived from structured workflow data.

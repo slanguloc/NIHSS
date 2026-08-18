@@ -4,6 +4,51 @@ Use the text below in your App Store listing and in **App Review Information** t
 
 ---
 
+## What's New in This Version (v1.1)
+
+Paste into App Store Connect → **Version Information** → **What’s New in This Version**.
+
+```
+Stroke Code — decision support
+
+• Unknown Last Known Well (found down / no historian) with imaging-selection pathway
+• NIHSS 0–5 mild-stroke band: treat disabling symptoms; do not treat non-disabling (PRISMS)
+• Guide to which mild symptoms are typically disabling vs non-disabling
+• pc-ASPECTS for posterior-circulation / basilar occlusions
+• Simpler time-point navigation: next-up bar, grouped compact list, jump to next
+• ASPECTS guide with the standard region map and step-by-step scoring tips
+• References card with collapsible trial and guideline sources
+• Clearer EVT workflow: time window, LVO, ASPECTS / pc-ASPECTS, and NIHSS pulled together
+• Extended-window EVT (6–24 h) guidance when advanced imaging criteria are met
+• IV thrombolysis timing auto-filled from Last Known Well on the timeline
+• Record and translate the patient’s consent answer after the IVT script (Spanish)
+
+NIHSS assessment
+
+• Spanish speech capture on Item 3 (finger counting) with English translation for the evaluator
+• English NIH/NINDS images for Item 9 (Best Language), with source attribution
+
+General
+
+• Updated home screen and patient language picker
+• 2026-oriented stroke medical-management training notes in Stroke Code
+
+Education and training only. Not for clinical use.
+```
+
+**Shorter variant** (if you need a tighter character limit):
+
+```
+• Stroke Code: unknown LKW, NIHSS 0–5 disabling guide, pc-ASPECTS
+• Simpler time-point navigation; ASPECTS/EVT/IVT decision support
+• NIHSS: Spanish finger-count recording (Item 3); English Item 9 NIH images
+• Home and language picker updates
+
+For education and training only. Not for clinical use.
+```
+
+---
+
 ## App description (suggested opening)
 
 **Zysquy — NIH Stroke Scale for non-English speaking patients**

@@ -35,11 +35,16 @@ struct StrokeCodeDecisionView: View {
             disclaimerBanner
             timelineAutoCaptureBanner
             patientDetailsCard
+            if shouldShowMildStrokeGuide {
+                mildStrokeDisablingCard
+            }
             anchorsCard
             imagingCard
             if state.imagingResult != .hemorrhagic {
                 aspectsHowToCalculateCard
                 aspectsCard
+                pcAspectsHowToCalculateCard
+                pcAspectsCard
             }
             if state.imagingResult == .hemorrhagic {
                 hemorrhagicAdvisory
@@ -98,14 +103,27 @@ struct StrokeCodeDecisionView: View {
     }
 
     private var minutesSinceLKW: Double? {
-        store.active?.lastKnownWell.map { Date().timeIntervalSince($0) / 60.0 }
+        store.active?.minutesSinceLKW()
+    }
+
+    private var isLKWUnknown: Bool {
+        store.active?.isLKWUnknown == true
+    }
+
+    private var shouldShowMildStrokeGuide: Bool {
+        if state.imagingResult == .hemorrhagic { return false }
+        if let n = state.nihssTotal { return n <= DecisionState.mildNihssMax }
+        return true
     }
 
     /// Shown when late-window EVT criteria are met but LVO is not yet confirmed.
     private var shouldShowExtendedWindowEvtBridge: Bool {
         guard state.lvoStatus != .present else { return false }
+        if isLKWUnknown {
+            return state.suggestsExtendedWindowEVT(minutesSinceLKW: nil, lkwUnknown: true)
+        }
         guard let mins = minutesSinceLKW else { return false }
-        return state.suggestsExtendedWindowEVT(minutesSinceLKW: mins)
+        return state.suggestsExtendedWindowEVT(minutesSinceLKW: mins, lkwUnknown: false)
     }
 
     // MARK: - Banner / footer
@@ -170,13 +188,19 @@ struct StrokeCodeDecisionView: View {
             let now = ctx.date
             let lkw = store.active?.lastKnownWell
             let door = store.active?.doorTime
+            let unknown = isLKWUnknown
             VStack(alignment: .leading, spacing: 6) {
                 Text("Anchors")
                     .font(.headline)
                 HStack(spacing: 12) {
-                    anchorTile(title: "LKW", time: lkw, now: now,
-                               subtitle: lkw == nil ? "Set on Timeline tab" : windowHint(lkw: lkw, now: now),
-                               color: .blue)
+                    anchorTile(title: "LKW",
+                               time: unknown ? nil : lkw,
+                               now: now,
+                               subtitle: unknown
+                                ? "Imaging selection pathway"
+                                : (lkw == nil ? "Set on Timeline tab, or mark unknown" : windowHint(lkw: lkw, now: now)),
+                               color: unknown ? .orange : .blue,
+                               valueOverride: unknown ? "Unknown" : nil)
                     anchorTile(title: "Door (t=0)", time: door, now: now,
                                subtitle: door == nil ? "Set on Timeline tab" : "In-hospital t=0",
                                color: .red)
@@ -188,14 +212,14 @@ struct StrokeCodeDecisionView: View {
         }
     }
 
-    private func anchorTile(title: String, time: Date?, now: Date, subtitle: String, color: Color) -> some View {
+    private func anchorTile(title: String, time: Date?, now: Date, subtitle: String, color: Color, valueOverride: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(time.map { StrokeCodeStore.format(elapsed: now.timeIntervalSince($0)) } ?? "—")
+            Text(valueOverride ?? (time.map { StrokeCodeStore.format(elapsed: now.timeIntervalSince($0)) } ?? "—"))
                 .font(.title3.monospacedDigit().bold())
-                .foregroundStyle(time == nil ? Color.secondary : color)
+                .foregroundStyle((valueOverride != nil || time != nil) ? color : Color.secondary)
             Text(subtitle)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -280,13 +304,28 @@ struct StrokeCodeDecisionView: View {
 
     private var ivtCardContent: some View {
         let verdict = state.ivtVerdict()
-        let timing = state.ivtTimeWindowAssessment(minutesSinceLKW: minutesSinceLKW)
+        let timing = state.ivtTimeWindowAssessment(minutesSinceLKW: minutesSinceLKW, lkwUnknown: isLKWUnknown)
+        let disabling = state.ivtDisablingAssessment()
         return card(title: "IV thrombolysis eligibility", systemImage: "syringe") {
-            if store.active?.lastKnownWell != nil {
+            if store.active?.lastKnownWell != nil || isLKWUnknown {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: timing.met == true ? "clock.badge.checkmark" : (timing.met == false ? "clock.badge.exclamationmark" : "clock"))
                         .foregroundStyle(timing.met == true ? .green : (timing.met == false ? .orange : .secondary))
                     Text(timing.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            if shouldShowMildStrokeGuide {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: disabling.met == true ? "checkmark.circle" : (disabling.met == false ? "xmark.circle" : "questionmark.circle"))
+                        .foregroundStyle(disabling.met == true ? .green : (disabling.met == false ? .orange : .secondary))
+                    Text(disabling.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -380,11 +419,11 @@ struct StrokeCodeDecisionView: View {
     // MARK: - EVT card
 
     private var evtCard: some View {
-        let verdict = state.evtVerdict(minutesSinceLKW: minutesSinceLKW)
+        let verdict = state.evtVerdict(minutesSinceLKW: minutesSinceLKW, lkwUnknown: isLKWUnknown)
         let site = state.lvoSite ?? .unknown
         let mrs = state.baselineMRS ?? .unknown
         return card(title: "EVT eligibility", systemImage: "scissors") {
-            if let mins = minutesSinceLKW, state.suggestsExtendedWindowEVT(minutesSinceLKW: mins) {
+            if state.suggestsExtendedWindowEVT(minutesSinceLKW: minutesSinceLKW, lkwUnknown: isLKWUnknown) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "link")
                         .foregroundStyle(.blue)
@@ -436,7 +475,7 @@ struct StrokeCodeDecisionView: View {
             Text("Captured from workflow")
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
-            ForEach(state.evtStructuredCriteria(minutesSinceLKW: minutesSinceLKW)) { row in
+            ForEach(state.evtStructuredCriteria(minutesSinceLKW: minutesSinceLKW, lkwUnknown: isLKWUnknown)) { row in
                 evtStructuredCriterionRow(row)
             }
 
@@ -544,7 +583,7 @@ struct StrokeCodeDecisionView: View {
                 .foregroundStyle(.purple)
             ForEach([
                 "If IVT-eligible, give thrombolysis before EVT; do not skip IVT to expedite transfer (DIRECT-MT / SKIP).",
-                "Low NIHSS with disabling deficit (e.g., aphasia, hemianopia): EVT may be reasonable (Class IIb) even when NIHSS < 6.",
+                "Low NIHSS (0–5) with disabling deficit (e.g., aphasia, hemianopia, neglect, weakness limiting gait or hand use): EVT may be reasonable (Class IIb). NIHSS 5 is still in the mild band — do not use a ≥6 cutoff to exclude treatment.",
                 "Anesthesia (GA vs conscious sedation): Class IIa; institution- and patient-specific (SIESTA, GOLIATH, AnStroke)."
             ], id: \.self) { item in
                 Text("• \(item)")
@@ -563,6 +602,7 @@ struct StrokeCodeDecisionView: View {
 
     private var patientDetailsCard: some View {
         let aspectsCategory = AspectsCategory(score: state.aspectsScore ?? 10)
+        let pcCategory = PcAspectsCategory(score: state.pcAspectsScore)
 
         return card(title: "Patient details", systemImage: "person.text.rectangle") {
             // Weight row — tap the field for direct numeric entry, use ± for
@@ -610,6 +650,12 @@ struct StrokeCodeDecisionView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
+            if let n = state.nihssTotal, n <= DecisionState.mildNihssMax {
+                Text("NIHSS \(n) is in the mild band (0–5). Classify disabling vs non-disabling below — NIHSS 5 does not by itself exclude IVT or EVT.")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
             Divider().padding(.vertical, 2)
 
             // ASPECTS row — always editable here regardless of imaging.
@@ -641,7 +687,40 @@ struct StrokeCodeDecisionView: View {
                 .controlSize(.mini)
                 .disabled((state.aspectsScore ?? 10) == 10)
             }
-            Text("ASPECTS quantifies early ischemic changes on non-contrast CT (10 = normal). ASPECTS decision notes and diagram are below; EVT candidacy uses this score on the EVT card.")
+            Text("Anterior-circulation MCA score (10 = normal). Use pc-ASPECTS for vertebrobasilar / PCA.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            Divider().padding(.vertical, 2)
+
+            HStack(spacing: 10) {
+                Text("pc-ASPECTS")
+                    .font(.subheadline)
+                Spacer()
+                Text("\(state.pcAspectsScore ?? 10) / 10")
+                    .font(.subheadline.monospacedDigit().bold())
+                    .frame(minWidth: 70, alignment: .trailing)
+                Stepper("pc-ASPECTS", value: pcAspectsBinding, in: 0...10, step: 1)
+                    .labelsHidden()
+                    .fixedSize()
+            }
+            HStack {
+                Text(pcCategory.label)
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(pcAspectsBadgeColor(pcCategory).opacity(0.18))
+                    .foregroundStyle(pcAspectsBadgeColor(pcCategory))
+                    .clipShape(Capsule())
+                Spacer()
+                Button("Reset to 10") {
+                    store.mutateDecisions { $0.pcAspectsScore = 10 }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .disabled((state.pcAspectsScore ?? 10) == 10)
+            }
+            Text("Posterior-circulation score (thalami, cerebellum, PCA cortex, midbrain, pons). Used for basilar / PCA EVT.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -649,11 +728,99 @@ struct StrokeCodeDecisionView: View {
 
     private func severityColor(nihss: Int) -> Color {
         switch nihss {
-        case ..<5: return .green
-        case 5..<15: return .blue
-        case 15..<21: return .orange
+        case ...5: return .green
+        case 6..<16: return .blue
+        case 16..<21: return .orange
         default: return .red
         }
+    }
+
+    // MARK: - Mild stroke / disabling classification
+
+    private var mildStrokeDisablingCard: some View {
+        let status = state.deficitDisabling ?? .unknown
+        let nihssLabel = state.nihssTotal.map { "NIHSS \($0)" } ?? "NIHSS not yet captured"
+        return card(title: "Mild stroke — disabling vs non-disabling", systemImage: "figure.walk") {
+            Text("AHA/ASA: NIHSS 0–5 is the mild band. IV alteplase is recommended for mild disabling symptoms (Class I) and is not recommended for mild non-disabling symptoms (Class III: No Benefit, PRISMS). NIHSS of 5 is still mild — there is no treat-if-≥6 cutoff.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text(nihssLabel)
+                    .font(.caption.monospacedDigit().bold())
+                Spacer()
+                Picker("Deficit", selection: deficitDisablingBinding) {
+                    ForEach(DeficitDisablingStatus.allCases, id: \.self) { s in
+                        Text(s.label).tag(s)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Typically disabling (treat if otherwise eligible)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.orange)
+                ForEach([
+                    "Aphasia that impairs communication",
+                    "Complete hemianopia or dense visual-field cut",
+                    "Neglect / extinction",
+                    "Weakness that limits unassisted walking",
+                    "Weakness that limits use of the affected hand (especially dominant)",
+                    "Any deficit that would prevent return to work or basic ADLs"
+                ], id: \.self) { item in
+                    Text("• \(item)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Typically non-disabling (do not treat with IVT)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.blue)
+                ForEach([
+                    "Isolated facial droop",
+                    "Isolated mild dysarthria (still intelligible)",
+                    "Isolated sensory symptoms without neglect",
+                    "Isolated mild ataxia that does not affect gait",
+                    "Very mild drift that does not limit walking or hand function"
+                ], id: \.self) { item in
+                    Text("• \(item)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.blue.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Text(state.ivtDisablingAssessment().detail)
+                .font(.caption2)
+                .foregroundStyle(status == .nonDisabling ? .orange : .secondary)
+
+            Text("Judgment is clinical, not score-only. Training reference: Powers WJ et al. Stroke. 2019; Khatri P et al. PRISMS, JAMA 2018.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var deficitDisablingBinding: Binding<DeficitDisablingStatus> {
+        Binding(
+            get: { state.deficitDisabling ?? .unknown },
+            set: { newValue in
+                store.mutateDecisions {
+                    $0.deficitDisabling = newValue
+                    $0.applyIVTDisablingFromCapturedDeficit(overwrite: true)
+                }
+            }
+        )
     }
 
     // MARK: - Medical management (no IVT / no EVT)
@@ -674,13 +841,38 @@ struct StrokeCodeDecisionView: View {
 
             ahaAsa2026RemindersBanner
 
+            if let hint = antiplateletNihssHint {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.blue.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
             mgmtSection(
-                title: "Antiplatelet therapy",
+                title: "Antiplatelet — when (no TNK / no EVT)",
                 bullets: [
-                    "Aspirin 162–325 mg within 24–48 h once hemorrhage is excluded.",
-                    "Minor non-cardioembolic stroke (NIHSS ≤ 3) or high-risk TIA (ABCD² ≥ 4): DAPT — aspirin + clopidogrel for 21 days, then single agent (CHANCE / POINT).",
-                    "Alternative DAPT (THALES, 2020): aspirin + ticagrelor 90 mg BID × 30 days in minor stroke / high-risk TIA when clopidogrel is unsuitable.",
-                    "If IV thrombolysis was given: hold antiplatelets/anticoagulants for 24 h, then start once repeat imaging is clear."
+                    "Hemorrhage excluded and reperfusion not given: start antiplatelet promptly. Antiplatelets are not a substitute for IVT or EVT when those are indicated (Class III).",
+                    "SAPT (Class I): aspirin 160–325 mg within 48 h of onset (IST / CAST), then 81 mg daily (or clopidogrel 75 mg if aspirin-intolerant). Use SAPT when DAPT criteria below are not met.",
+                    "DAPT Class I (CHANCE / POINT): NIHSS ≤ 3 non-cardioembolic stroke OR high-risk TIA (ABCD² ≥ 4), no IVT, start within 24 h of onset. Aspirin + clopidogrel for 21 days, then SAPT. This is the default 2026 regimen for that population.",
+                    "DAPT Class IIa, new 2026 (INSPIRES): NIHSS ≤ 5 or TIA ABCD² ≥ 4 at 24–72 h from onset, or NIHSS 4–5 within 24 h, no IVT, presumed large-artery atherosclerosis (≥50% intra- or extracranial stenosis that explains the event, or acute infarcts of LAA origin). Clopidogrel + aspirin × 21 days, then SAPT.",
+                    "DAPT Class IIb (THALES): NIHSS ≤ 5, or TIA ABCD² ≥ 6, or symptomatic ≥50% stenosis; no IVT; <24 h. Ticagrelor + aspirin for 30 days may be considered (higher severe-bleeding risk).",
+                    "CYP2C19 loss-of-function (CHANCE-2, Class IIb): NIHSS ≤ 3 or TIA ABCD² ≥ 4, no IVT, <24 h — ticagrelor + aspirin × 21 days then ticagrelor monotherapy may be preferred over clopidogrel DAPT.",
+                    "Do not use DAPT for cardioembolic stroke (use anticoagulation). Do not add an antiplatelet to OAC in AF without active CAD or a recent stent (Class III: Harm). Triple antiplatelet therapy is not recommended (Class III: Harm). Ticagrelor monotherapy is not recommended over aspirin (SOCRATES, Class III: No Benefit)."
+                ]
+            )
+
+            mgmtSection(
+                title: "Antiplatelet — loading and maintenance doses",
+                bullets: [
+                    "Class I DAPT load: aspirin 162–325 mg once + clopidogrel 300 mg (CHANCE) or 600 mg (POINT). Then aspirin 81 mg daily + clopidogrel 75 mg daily for 21 days, then SAPT (aspirin 81 mg or clopidogrel 75 mg).",
+                    "Limit this DAPT to 21 days even though POINT continued to 90 days — ischemic benefit concentrates in the first 3 weeks and bleeding continues thereafter.",
+                    "INSPIRES load: clopidogrel 300 mg + aspirin 100–300 mg, then clopidogrel 75 mg + aspirin 81–100 mg × 21 days, then SAPT.",
+                    "THALES: ticagrelor 180 mg load then 90 mg BID + aspirin 300–325 mg on day 1 then 75–100 mg daily, for 30 days.",
+                    "CHANCE-2: ticagrelor 180 mg load then 90 mg BID + aspirin 75–300 mg load then 75 mg daily × 21 days, then ticagrelor monotherapy.",
+                    "If IVT was given: do not give IV aspirin with or within 90 minutes of thrombolysis (Class III: Harm). Antiplatelet in the first 24 h after IVT is uncertain (Class IIb); usual training practice is to wait ~24 h and start after repeat imaging excludes hemorrhage."
                 ]
             )
 
@@ -766,6 +958,19 @@ struct StrokeCodeDecisionView: View {
         }
     }
 
+    /// Training hint that maps a captured NIHSS to the 2026 DAPT vs SAPT branch
+    /// when IVT / EVT are not being given.
+    private var antiplateletNihssHint: String? {
+        guard let n = state.nihssTotal else { return nil }
+        if n <= 3 {
+            return "Captured NIHSS \(n) (≤3): if non-cardioembolic, no IVT, and within 24 h of onset, 2026 Class I DAPT is aspirin + clopidogrel with a clopidogrel load for 21 days, then SAPT — not aspirin alone."
+        }
+        if n <= 5 {
+            return "Captured NIHSS \(n) (4–5): CHANCE/POINT Class I DAPT does not apply (that cutoff is NIHSS ≤ 3). If no IVT and presumed large-artery atherosclerosis, INSPIRES Class IIa DAPT (clopidogrel + aspirin × 21 days) is reasonable; otherwise SAPT. Ticagrelor DAPT (THALES) is Class IIb."
+        }
+        return "Captured NIHSS \(n) (>5): short-course DAPT is not supported by CHANCE, POINT, or INSPIRES. Use SAPT (aspirin 160–325 mg, then 81 mg) unless another indication exists (e.g., stent)."
+    }
+
     /// Quick "what's emphasized in 2026" reminders banner.
     private var ahaAsa2026RemindersBanner: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -777,7 +982,7 @@ struct StrokeCodeDecisionView: View {
                 "Consider SGLT2i / GLP-1 RA in T2DM with ASCVD for outpatient cardiovascular risk reduction.",
                 "Screen for post-stroke depression, cognitive impairment, and sleep-disordered breathing before discharge.",
                 "For cryptogenic stroke: prolonged rhythm monitoring (ILR) and consider PFO closure if age < 60.",
-                "DAPT alternative: aspirin + ticagrelor (THALES) when clopidogrel unsuitable."
+                "No TNK / no EVT: NIHSS ≤ 3 (or high-risk TIA) within 24 h → Class I DAPT with clopidogrel load × 21 days; NIHSS 4–5 or 24–72 h with LAA → INSPIRES Class IIa DAPT; otherwise aspirin SAPT."
             ], id: \.self) { item in
                 Text("• \(item)")
                     .font(.caption2)
@@ -1076,7 +1281,7 @@ struct StrokeCodeDecisionView: View {
                 Text("Tips")
                     .font(.subheadline.bold())
                     .padding(.top, 4)
-                Text("• ASPECTS is for anterior circulation only — use pc-ASPECTS (posterior-circulation ASPECTS) for the basilar/PCA territory.")
+                Text("• ASPECTS is for anterior circulation only — use pc-ASPECTS (below) for the basilar/PCA territory.")
                 Text("• Inter-rater variability is moderate; collaborate with neuroradiology when borderline.")
                 Text("• DWI-ASPECTS (on MRI diffusion) is used in extended-window selection.")
                 Text("• Subcortical and cortical regions are weighted equally — each affected region subtracts 1 point regardless of size.")
@@ -1235,13 +1440,165 @@ struct StrokeCodeDecisionView: View {
         )
     }
 
+    private var pcAspectsBinding: Binding<Int> {
+        Binding<Int>(
+            get: { state.pcAspectsScore ?? 10 },
+            set: { newValue in
+                store.mutateDecisions { $0.pcAspectsScore = max(0, min(10, newValue)) }
+            }
+        )
+    }
+
+    private func pcAspectsBadgeColor(_ c: PcAspectsCategory) -> Color {
+        switch c {
+        case .notAssessed: return .secondary
+        case .favorable:   return .green
+        case .borderline:  return .blue
+        case .extensive:   return .red
+        }
+    }
+
+    // MARK: - pc-ASPECTS how to calculate
+
+    private var pcAspectsHowToCalculateCard: some View {
+        card(title: "pc-ASPECTS — How to calculate", systemImage: "list.number") {
+            Text("pc-ASPECTS (posterior-circulation Alberta Stroke Program Early CT Score) is a 10-point topographic score of early ischemic change in the vertebrobasilar territory on NCCT or CTA source images.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Method")
+                    .font(.subheadline.bold())
+                aspectsStepBullet(num: "1", text: "Start at 10 points (normal scan).")
+                aspectsStepBullet(num: "2", text: "Review brainstem, cerebellar, thalamic, and occipital slices.")
+                aspectsStepBullet(num: "3", text: "Subtract the points listed below for each region with early ischemic change (hypoattenuation or loss of gray-white differentiation). Midbrain and pons are worth 2 points each.")
+                aspectsStepBullet(num: "4", text: "Final score = 10 − points deducted. Range 0 (extensive posterior infarct) to 10 (normal).")
+            }
+
+            Divider().padding(.vertical, 2)
+
+            pcAspectsDiagram
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Regions (10 points)")
+                    .font(.subheadline.bold())
+                aspectsRegionGroupHeading("1 point each")
+                aspectsRegionRow("Th L", "Left thalamus")
+                aspectsRegionRow("Th R", "Right thalamus")
+                aspectsRegionRow("Cbl L", "Left cerebellum")
+                aspectsRegionRow("Cbl R", "Right cerebellum")
+                aspectsRegionRow("PCA L", "Left occipital / PCA cortex")
+                aspectsRegionRow("PCA R", "Right occipital / PCA cortex")
+                aspectsRegionGroupHeading("2 points each")
+                aspectsRegionRow("MB", "Midbrain")
+                aspectsRegionRow("Pons", "Pons")
+            }
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Interpretation (training)")
+                    .font(.subheadline.bold())
+                Text("• 8–10 = favorable posterior-circulation core.")
+                Text("• 6–7 = borderline; within BAOCHE / ATTENTION enrollment (pc-ASPECTS ≥ 6).")
+                Text("• 0–5 = extensive; EVT generally not recommended.")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Text("Scoring method: Puetz V et al. Stroke. 2008;39(9):2485-2490. Region map: Khatibi et al., World Neurosurg. 2019 (Figure 1).")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 4)
+        }
+    }
+
+    /// pc-ASPECTS region map (pons/cerebellum, midbrain, thalami/occipital).
+    /// Figure 1 from Khatibi et al., World Neurosurg. 2019;129:e566-e571.
+    private static let pcAspectsDiagramURL = URL(string: "https://www.sciencedirect.com/science/article/abs/pii/S1878875019314949")!
+
+    private var pcAspectsDiagram: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Posterior circulation — region map")
+                .font(.subheadline.bold())
+
+            Text("Left: pons (2) and each cerebellar hemisphere (1). Middle: midbrain (2). Right: each thalamus (1) and each occipital / PCA cortex (1). Start at 10; subtract those points for early ischemic change.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Image("PcAspectsTemplate")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+                )
+                .accessibilityLabel("pc-ASPECTS template showing three axial slices: pons and cerebellum, midbrain, and thalami with occipital lobes, with point values labeled")
+
+            Link(destination: Self.pcAspectsDiagramURL) {
+                Text("Diagram source: Khatibi et al., World Neurosurg. 2019;129:e566-e571, Figure 1 — ScienceDirect S1878875019314949")
+            }
+            .font(.caption2)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var pcAspectsCard: some View {
+        let score = state.pcAspectsScore ?? 10
+        let category = PcAspectsCategory(score: score)
+        return card(title: "pc-ASPECTS — Decision notes", systemImage: "hexagon") {
+            Text("Use pc-ASPECTS instead of (or in addition to) anterior ASPECTS when the suspected or confirmed occlusion is basilar, vertebral, or PCA. Set the score in Patient details.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("Current")
+                Spacer()
+                Text("\(score) / 10")
+                    .font(.subheadline.monospacedDigit().bold())
+                Text(category.label)
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(pcAspectsBadgeColor(category).opacity(0.18))
+                    .foregroundStyle(pcAspectsBadgeColor(category))
+                    .clipShape(Capsule())
+            }
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("EVT / IVT notes")
+                    .font(.subheadline.bold())
+                Text(category.evtTrainingNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(category.ivtTrainingNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("When LVO site is basilar, PCA, or VA, the EVT card uses pc-ASPECTS as the infarct-core row.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     // MARK: - 3–4.5 h IV thrombolysis card
 
     /// Show the 3–4.5 h extended-early-window IVT card when the patient is
     /// (or has been) within that window since LKW.
     private var shouldShowExtendedEarlyIvt: Bool {
-        guard let lkw = store.active?.lastKnownWell else { return false }
-        let mins = Date().timeIntervalSince(lkw) / 60.0
+        guard !isLKWUnknown, let mins = minutesSinceLKW else { return false }
         return mins >= 180.0 && mins <= 540.0   // surface from 3 h through 9 h
     }
 
@@ -1387,15 +1744,25 @@ struct StrokeCodeDecisionView: View {
     // MARK: - Extended window card
 
     private var extendedWindowCard: some View {
-        let lkw = store.active?.lastKnownWell
-        let minutesSinceLKW = lkw.map { Date().timeIntervalSince($0) / 60.0 }
+        let minutes = minutesSinceLKW
         let ew = state.extendedWindow ?? .empty
-        let verdict = ew.verdict(minutesSinceLKW: minutesSinceLKW)
+        let verdict = ew.verdict(minutesSinceLKW: minutes, lkwUnknown: isLKWUnknown)
 
         return card(title: "Extended window (late presentation / wake-up)",
                     systemImage: "clock.badge.exclamationmark") {
 
-            if let mins = minutesSinceLKW {
+            if isLKWUnknown {
+                HStack {
+                    Text("Time since LKW")
+                    Spacer()
+                    Text("Unknown")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.orange)
+                }
+                Text("Unknown LKW (found down / no historian). Use DWI-FLAIR or perfusion mismatch for IVT (WAKE-UP / EXTEND) and DAWN / DEFUSE-3 / large-core criteria for EVT.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let mins = minutes {
                 HStack {
                     Text("Time since LKW")
                     Spacer()
@@ -1407,7 +1774,7 @@ struct StrokeCodeDecisionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Capture Last known well on the Timeline tab to evaluate extended-window eligibility.")
+                Text("Capture Last known well on the Timeline tab, or mark LKW unknown, to evaluate extended-window eligibility.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1493,8 +1860,8 @@ struct StrokeCodeDecisionView: View {
                     .clipShape(Capsule())
             }
 
-            if verdict.suggestsEVTDiscussion, let mins = minutesSinceLKW {
-                extendedWindowEvtLinkedBanner(minutesSinceLKW: mins, emphasizeNextSteps: true)
+            if verdict.suggestsEVTDiscussion {
+                extendedWindowEvtLinkedBanner(minutesSinceLKW: minutes, lkwUnknown: isLKWUnknown, emphasizeNextSteps: true)
             }
 
             Text("Educational summary of WAKE-UP, EXTEND, EPITHET (IVT extended), DAWN, DEFUSE-3 (EVT 6–24 h), and SELECT2 / RESCUE-Japan LIMIT / ANGEL-ASPECT (large-core EVT). Not a clinical decision tool.")
@@ -1505,19 +1872,25 @@ struct StrokeCodeDecisionView: View {
     }
 
     /// Training banner linking late-window imaging criteria to EVT workflow.
-    private func extendedWindowEvtLinkedBanner(minutesSinceLKW: Double,
+    private func extendedWindowEvtLinkedBanner(minutesSinceLKW: Double?,
+                                               lkwUnknown: Bool = false,
                                                emphasizeNextSteps: Bool = false) -> some View {
         let ew = state.extendedWindow ?? .empty
         let trials = ew.evtTrialLabelsMet
         let trialText = trials.isEmpty
             ? "Late-window EVT criteria selected"
             : "Criteria met: " + trials.joined(separator: ", ")
+        let timingText: String = {
+            if lkwUnknown { return "unknown LKW with imaging selection" }
+            if let mins = minutesSinceLKW { return "\(formatMinutes(mins)) since LKW" }
+            return "timing not captured"
+        }()
 
         return VStack(alignment: .leading, spacing: 6) {
             Label("Consider EVT discussion (training)", systemImage: "person.2.wave.2.fill")
                 .font(.subheadline.bold())
                 .foregroundStyle(.blue)
-            Text("Based on specialized imaging in the 6–24 h window (\(formatMinutes(minutesSinceLKW)) since LKW), this profile supports considering endovascular thrombectomy with your stroke team and neuro-interventional radiology. This is not a treatment order.")
+            Text("Based on specialized imaging (\(timingText)), this profile supports considering endovascular thrombectomy with your stroke team and neuro-interventional radiology. This is not a treatment order.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(trialText)
@@ -1537,12 +1910,11 @@ struct StrokeCodeDecisionView: View {
 
     /// Shown when extended-window EVT criteria are met but LVO is not yet set.
     private var extendedWindowEvtBridgeCard: some View {
-        let mins = minutesSinceLKW ?? 0
-        return VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             Label("Extended-window EVT — next step", systemImage: "arrow.down.circle.fill")
                 .font(.headline)
                 .foregroundStyle(.blue)
-            extendedWindowEvtLinkedBanner(minutesSinceLKW: mins, emphasizeNextSteps: true)
+            extendedWindowEvtLinkedBanner(minutesSinceLKW: minutesSinceLKW, lkwUnknown: isLKWUnknown, emphasizeNextSteps: true)
             Text("Set LVO to “LVO present” on the vascular imaging card above to open the full EVT eligibility checklist and training plan.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -1836,8 +2208,8 @@ struct StrokeCodeDecisionView: View {
                     url: nil
                 )
                 referenceItem(
-                    title: "AHA/ASA acute ischemic stroke (2019)",
-                    citation: "Powers WJ et al. Stroke. 2019;50(12):e344-e418.",
+                    title: "Mild non-disabling stroke (PRISMS)",
+                    citation: "Khatri P et al. Effect of alteplase vs aspirin on functional outcome for patients with acute ischemic stroke and minor nondisabling neurologic deficits: the PRISMS randomized clinical trial. JAMA. 2018;320(2):156-166. Informs the AHA/ASA Class III: No Benefit recommendation for NIHSS 0–5 non-disabling stroke.",
                     url: nil
                 )
             }
@@ -1942,6 +2314,26 @@ struct StrokeCodeDecisionView: View {
                     citation: "Schröder J, Thomalla G. Front Neurol. 2017;7:245. Figure 2 (CC BY 4.0). PMC5226934.",
                     url: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5226934/"
                 )
+                referenceItem(
+                    title: "pc-ASPECTS (posterior circulation)",
+                    citation: "Puetz V et al. Extent of hypoattenuation on CT angiography source images predicts functional outcome in patients with basilar artery occlusion. Stroke. 2008;39(9):2485-2490.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "pc-ASPECTS region diagram (in-app)",
+                    citation: "Khatibi K, Nour M, Tateshima S, Jahan R, Duckwiler G, Saver JL, Szeder V. Posterior circulation thrombectomy—pc-ASPECT score applied to preintervention MRI. World Neurosurg. 2019;129:e566-e571. Figure 1.",
+                    url: "https://www.sciencedirect.com/science/article/abs/pii/S1878875019314949"
+                )
+                referenceItem(
+                    title: "Basilar EVT (ATTENTION)",
+                    citation: "Jovin TG et al. Trial of endovascular treatment of acute basilar-artery occlusion. NEJM. 2022;387:1361-1372. Enrollment typically pc-ASPECTS ≥ 6.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "Basilar EVT (BAOCHE)",
+                    citation: "Tao C et al. Trial of endovascular treatment of acute basilar-artery occlusion. NEJM. 2022;387:1373-1384.",
+                    url: nil
+                )
             }
 
             referenceGroup(title: "Anesthesia for EVT") {
@@ -1965,18 +2357,33 @@ struct StrokeCodeDecisionView: View {
             referenceGroup(title: "Antiplatelet / DAPT") {
                 referenceItem(
                     title: "CHANCE",
-                    citation: "Wang Y et al. NEJM. 2013;369(1):11-19.",
+                    citation: "Wang Y et al. Clopidogrel with aspirin in acute minor stroke or high-risk TIA. NEJM. 2013;369(1):11-19. Clopidogrel 300 mg load then 75 mg + aspirin × 21 days.",
                     url: nil
                 )
                 referenceItem(
                     title: "POINT",
-                    citation: "Johnston SC et al. NEJM. 2018;379(3):215-225.",
+                    citation: "Johnston SC et al. Clopidogrel and aspirin in acute ischemic stroke and high-risk TIA. NEJM. 2018;379(3):215-225. Clopidogrel 600 mg load; 2026 guidance still limits DAPT to 21 days.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "INSPIRES (2026 Class IIa expansion)",
+                    citation: "Gao Y et al. Dual antiplatelet treatment up to 72 hours after ischemic stroke. NEJM. 2023;389:2413-2424. NIHSS ≤ 5 / 24–72 h or NIHSS 4–5 within 24 h, presumed atherosclerosis; clopidogrel 300 mg load + aspirin × 21 days.",
                     url: nil
                 )
                 referenceItem(
                     title: "THALES (ticagrelor)",
-                    citation: "Johnston SC et al. NEJM. 2020;383(3):207-217.",
+                    citation: "Johnston SC et al. Ticagrelor and aspirin or aspirin alone in acute ischemic stroke or TIA. NEJM. 2020;383(3):207-217. Ticagrelor 180 mg load then 90 mg BID + aspirin × 30 days.",
                     url: nil
+                )
+                referenceItem(
+                    title: "CHANCE-2 (CYP2C19)",
+                    citation: "Wang Y et al. Ticagrelor versus clopidogrel in CYP2C19 loss-of-function carriers with stroke or TIA. NEJM. 2021;385:2520-2530.",
+                    url: nil
+                )
+                referenceItem(
+                    title: "AHA/ASA 2026 AIS guideline §4.8",
+                    citation: "Prabhakaran S et al. 2026 Guideline for the Early Management of Patients With Acute Ischemic Stroke. Stroke. 2026. Recommendations 1, 12–15 (DAPT vs SAPT when IVT not given).",
+                    url: "https://www.ahajournals.org/doi/10.1161/STR.0000000000000513"
                 )
             }
 

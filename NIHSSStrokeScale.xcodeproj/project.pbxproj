@@ -126,6 +126,28 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		A4000004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A2000014 /* AppLanguage.swift */,
+				A2000015 /* LanguageStore.swift */,
+				A2000019 /* LocalEncryptedStorage.swift */,
+				A4000012 /* NIHSS */,
+				A4000013 /* StrokeCode */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A4000005 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A2000010 /* SpanishSpeechService.swift */,
+				A2000017 /* PatientResponseService.swift */,
+				A2000031 /* IvtConsentSpeechTranslation.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		A4000010 /* NIHSS */ = {
 			isa = PBXGroup;
 			children = (
@@ -152,18 +174,6 @@
 			path = StrokeCode;
 			sourceTree = "<group>";
 		};
-		A4000004 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				A2000014 /* AppLanguage.swift */,
-				A2000015 /* LanguageStore.swift */,
-				A2000019 /* LocalEncryptedStorage.swift */,
-				A4000012 /* NIHSS */,
-				A4000013 /* StrokeCode */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
 		A4000012 /* NIHSS */ = {
 			isa = PBXGroup;
 			children = (
@@ -184,16 +194,6 @@
 				A2000029 /* StrokeCodeConsent.swift */,
 			);
 			path = StrokeCode;
-			sourceTree = "<group>";
-		};
-		A4000005 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				A2000010 /* SpanishSpeechService.swift */,
-				A2000017 /* PatientResponseService.swift */,
-				A2000031 /* IvtConsentSpeechTranslation.swift */,
-			);
-			path = Services;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -224,7 +224,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					A5000001 = {
 						CreatedOnToolsVersion = 15.0;
@@ -331,6 +331,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = LUK5W53P5S;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -389,6 +390,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = LUK5W53P5S;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -417,13 +419,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = LUK5W53P5S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Zysquy;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "To capture and transcribe the patient's response for the evaluator.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "To transcribe the patient's spoken response and translate it to English for the evaluator.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -432,7 +434,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nihss.strokescale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -451,13 +453,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = LUK5W53P5S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Zysquy;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "To capture and transcribe the patient's response for the evaluator.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "To transcribe the patient's spoken response and translate it to English for the evaluator.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -466,7 +468,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nihss.strokescale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

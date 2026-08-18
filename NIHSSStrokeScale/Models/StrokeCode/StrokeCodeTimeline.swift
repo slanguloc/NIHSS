@@ -56,7 +56,7 @@ extension StrokeCodeMilestone {
         StrokeCodeMilestone(
             id: "lkw",
             label: "Last Known Well",
-            helpText: "Last time the patient was confirmed at neurologic baseline. Anchors thrombolysis and EVT treatment windows.",
+            helpText: "Last time the patient was confirmed at neurologic baseline. Anchors thrombolysis and EVT treatment windows. If truly unknown (found down, no historian), mark Unknown LKW and use imaging selection.",
             measuredFrom: .anchor,
             target: nil,
             isAnchor: true,
@@ -198,6 +198,40 @@ extension StrokeCodeMilestone {
             order: 15
         )
     ]
+
+    /// Compact label for the time-point navigator.
+    var shortLabel: String {
+        switch id {
+        case "lkw": return "LKW"
+        case "symptomDiscovery": return "Discovery"
+        case "emsArrival": return "EMS"
+        case "doorTime": return "Door"
+        case "codeActivated": return "Code"
+        case "mdEval": return "MD eval"
+        case "nihssDone": return "NIHSS"
+        case "ctStart": return "CT start"
+        case "ctRead": return "CT read"
+        case "labs": return "Labs"
+        case "cta": return "CTA"
+        case "thrombolyticDecision": return "IVT decision"
+        case "needle": return "Needle"
+        case "evtDecision": return "EVT decision"
+        case "puncture": return "Puncture"
+        case "recanalization": return "Reperfusion"
+        default: return label
+        }
+    }
+
+    /// Grouping used by the simplified timeline list.
+    var sectionTitle: String {
+        switch id {
+        case "lkw", "doorTime": return "Anchors"
+        case "symptomDiscovery", "emsArrival": return "Pre-hospital"
+        case "codeActivated", "mdEval", "nihssDone": return "ED evaluation"
+        case "ctStart", "ctRead", "labs", "cta": return "Imaging"
+        default: return "Reperfusion"
+        }
+    }
 }
 
 // MARK: - Captured events
@@ -235,6 +269,9 @@ struct StrokeCodeSession: Identifiable, Codable, Equatable {
     var decisions: DecisionState?
     /// Identifier of the educator-selected scenario, if any.
     var scenarioId: String?
+    /// True when Last Known Well cannot be determined (found down, no historian).
+    /// Distinct from “not yet captured.” Optional for backward compatibility.
+    var lkwUnknown: Bool? = nil
 
     init(id: UUID = UUID(),
          startedAt: Date = Date(),
@@ -242,7 +279,8 @@ struct StrokeCodeSession: Identifiable, Codable, Equatable {
          notes: String = "",
          completedAt: Date? = nil,
          decisions: DecisionState? = nil,
-         scenarioId: String? = nil) {
+         scenarioId: String? = nil,
+         lkwUnknown: Bool? = nil) {
         self.id = id
         self.startedAt = startedAt
         self.events = events
@@ -250,6 +288,7 @@ struct StrokeCodeSession: Identifiable, Codable, Equatable {
         self.completedAt = completedAt
         self.decisions = decisions
         self.scenarioId = scenarioId
+        self.lkwUnknown = lkwUnknown
     }
 
     /// First event timestamp for a given milestone id, if captured.
@@ -260,8 +299,35 @@ struct StrokeCodeSession: Identifiable, Codable, Equatable {
     /// Door time (in-hospital t=0).
     var doorTime: Date? { timestamp(for: "doorTime") }
 
-    /// Last Known Well (treatment-window anchor).
+    /// Last Known Well (treatment-window anchor). Nil when not captured or marked unknown.
     var lastKnownWell: Date? { timestamp(for: "lkw") }
+
+    /// True when the trainee marked LKW as unknown (wake-up / found down with no historian).
+    var isLKWUnknown: Bool { lkwUnknown == true }
+
+    /// Minutes from captured LKW to `date`. Nil when LKW is missing or unknown.
+    func minutesSinceLKW(at date: Date = Date()) -> Double? {
+        guard !isLKWUnknown, let lkw = lastKnownWell else { return nil }
+        return date.timeIntervalSince(lkw) / 60.0
+    }
+
+    /// A milestone is complete when timestamped, or when LKW is marked unknown.
+    func isComplete(_ milestone: StrokeCodeMilestone) -> Bool {
+        if milestone.id == "lkw" && isLKWUnknown { return true }
+        return timestamp(for: milestone.id) != nil
+    }
+
+    func nextPendingMilestone(from catalog: [StrokeCodeMilestone] = StrokeCodeMilestone.defaultMilestones) -> StrokeCodeMilestone? {
+        catalog.first { !isComplete($0) }
+    }
+
+    func previousPendingMilestone(before id: String,
+                                  from catalog: [StrokeCodeMilestone] = StrokeCodeMilestone.defaultMilestones) -> StrokeCodeMilestone? {
+        guard let idx = catalog.firstIndex(where: { $0.id == id }) else {
+            return catalog.last { !isComplete($0) }
+        }
+        return catalog.prefix(idx).last { !isComplete($0) }
+    }
 
     /// Reference time for a milestone, given the milestone catalog.
     func referenceTime(for milestone: StrokeCodeMilestone) -> Date? {
@@ -349,6 +415,7 @@ final class StrokeCodeStore: ObservableObject {
         // as findings emerge.
         mutateDecisions {
             $0.aspectsScore = 10
+            $0.pcAspectsScore = 10
             $0.weightKg = 75
         }
     }
@@ -375,14 +442,17 @@ final class StrokeCodeStore: ObservableObject {
         var seeded = DecisionState.empty
         seeded.weightKg = scenario.demographics.weightKg ?? 75
         seeded.aspectsScore = 10
-        active = StrokeCodeSession(
+        seeded.pcAspectsScore = 10
+        var session = StrokeCodeSession(
             startedAt: loadedAt,
             events: scenario.initialEvents(loadedAt: loadedAt),
             notes: "",
             completedAt: nil,
             decisions: seeded,
-            scenarioId: scenario.id
+            scenarioId: scenario.id,
+            lkwUnknown: scenario.timing.lkwMinutesAgo == nil ? true : nil
         )
+        active = session
         isEditingExisting = false
         editingOriginal = nil
         applyIVTTimeWindowHintsIfApplicable()
@@ -422,10 +492,24 @@ final class StrokeCodeStore: ObservableObject {
         guard var s = active else { return }
         s.events.removeAll(where: { $0.milestoneId == milestoneId })
         s.events.append(StrokeCodeEvent(milestoneId: milestoneId, timestamp: date, note: note))
+        if milestoneId == "lkw" {
+            s.lkwUnknown = false
+        }
         active = s
         if milestoneId == "lkw" {
             applyIVTTimeWindowHintsIfApplicable()
         }
+    }
+
+    /// Marks Last Known Well as unknown (no usable timestamp). Clears any
+    /// previously captured LKW time.
+    func markLKWUnknown() {
+        guard var s = active else { return }
+        s.events.removeAll(where: { $0.milestoneId == "lkw" })
+        s.lkwUnknown = true
+        active = s
+        mutateDecisions { $0.ivtCriteria["ivt.windowLKW45h"] = .unknown }
+        applyIVTTimeWindowHintsIfApplicable()
     }
 
     /// Captures `milestoneId` only if it hasn't been captured yet. Returns
@@ -446,6 +530,9 @@ final class StrokeCodeStore: ObservableObject {
     func clear(milestoneId: String) {
         guard var s = active else { return }
         s.events.removeAll(where: { $0.milestoneId == milestoneId })
+        if milestoneId == "lkw" {
+            s.lkwUnknown = false
+        }
         active = s
         if milestoneId == "lkw" {
             mutateDecisions { $0.ivtCriteria["ivt.windowLKW45h"] = .unknown }
@@ -487,9 +574,15 @@ final class StrokeCodeStore: ObservableObject {
 
     /// Auto-fills IVT “within 4.5 h / extended window” from Timeline LKW when unanswered.
     func applyIVTTimeWindowHintsIfApplicable() {
-        guard let lkw = active?.lastKnownWell else { return }
-        let minutesSinceLKW = Date().timeIntervalSince(lkw) / 60.0
-        mutateDecisions { $0.applyIVTTimeWindowFromLKW(minutesSinceLKW: minutesSinceLKW) }
+        let unknown = active?.isLKWUnknown == true
+        let minutes = active?.minutesSinceLKW()
+        guard unknown || minutes != nil else { return }
+        mutateDecisions { $0.applyIVTTimeWindowFromLKW(minutesSinceLKW: minutes, lkwUnknown: unknown) }
+    }
+
+    /// Auto-fills the IVT “disabling deficit” item from NIHSS and the mild-stroke classification.
+    func applyDisablingDeficitHintsIfApplicable() {
+        mutateDecisions { $0.applyIVTDisablingFromCapturedDeficit() }
     }
 
     // MARK: Persistence
