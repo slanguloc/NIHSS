@@ -1479,7 +1479,13 @@ struct StrokeCodeDecisionView: View {
 
             Divider().padding(.vertical, 2)
 
-            pcAspectsDiagram
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Typical slices to review")
+                    .font(.subheadline.bold())
+                Text("Pons and cerebellar hemispheres; midbrain; thalami and occipital / PCA cortex.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Divider().padding(.vertical, 2)
 
@@ -1510,46 +1516,11 @@ struct StrokeCodeDecisionView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            Text("Scoring method: Puetz V et al. Stroke. 2008;39(9):2485-2490. Region map: Khatibi et al., World Neurosurg. 2019 (Figure 1).")
+            Text("Scoring method: Puetz V et al. Stroke. 2008;39(9):2485-2490.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 4)
         }
-    }
-
-    /// pc-ASPECTS region map (pons/cerebellum, midbrain, thalami/occipital).
-    /// Figure 1 from Khatibi et al., World Neurosurg. 2019;129:e566-e571.
-    private static let pcAspectsDiagramURL = URL(string: "https://www.sciencedirect.com/science/article/abs/pii/S1878875019314949")!
-
-    private var pcAspectsDiagram: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Posterior circulation — region map")
-                .font(.subheadline.bold())
-
-            Text("Left: pons (2) and each cerebellar hemisphere (1). Middle: midbrain (2). Right: each thalamus (1) and each occipital / PCA cortex (1). Start at 10; subtract those points for early ischemic change.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Image("PcAspectsTemplate")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
-                )
-                .accessibilityLabel("pc-ASPECTS template showing three axial slices: pons and cerebellum, midbrain, and thalami with occipital lobes, with point values labeled")
-
-            Link(destination: Self.pcAspectsDiagramURL) {
-                Text("Diagram source: Khatibi et al., World Neurosurg. 2019;129:e566-e571, Figure 1 — ScienceDirect S1878875019314949")
-            }
-            .font(.caption2)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.tertiarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var pcAspectsCard: some View {
@@ -2318,11 +2289,6 @@ struct StrokeCodeDecisionView: View {
                     title: "pc-ASPECTS (posterior circulation)",
                     citation: "Puetz V et al. Extent of hypoattenuation on CT angiography source images predicts functional outcome in patients with basilar artery occlusion. Stroke. 2008;39(9):2485-2490.",
                     url: nil
-                )
-                referenceItem(
-                    title: "pc-ASPECTS region diagram (in-app)",
-                    citation: "Khatibi K, Nour M, Tateshima S, Jahan R, Duckwiler G, Saver JL, Szeder V. Posterior circulation thrombectomy—pc-ASPECT score applied to preintervention MRI. World Neurosurg. 2019;129:e566-e571. Figure 1.",
-                    url: "https://www.sciencedirect.com/science/article/abs/pii/S1878875019314949"
                 )
                 referenceItem(
                     title: "Basilar EVT (ATTENTION)",

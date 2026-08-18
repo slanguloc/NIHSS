@@ -60,14 +60,7 @@ The Stroke Code **pc-ASPECTS** score and region list follow:
 - 10-point score: left/right thalamus, left/right cerebellum, left/right PCA cortex (1 point each); midbrain and pons (2 points each). Start at 10; subtract for early ischemic change.
 - Basilar-occlusion EVT trials (ATTENTION, BAOCHE) typically enrolled pc-ASPECTS ≥ 6.
 
-The **pc-ASPECTS region diagram** shown in **pc-ASPECTS — How to calculate** is:
-
-- **Asset name:** `PcAspectsTemplate`
-- **Source:** Khatibi K, Nour M, Tateshima S, Jahan R, Duckwiler G, Saver JL, Szeder V. *Posterior Circulation Thrombectomy—pc-ASPECT Score Applied to Preintervention Magnetic Resonance Imaging Can Accurately Predict Functional Outcome.* World Neurosurg. 2019;129:e566-e571. **Figure 1** (axial slices at pons/cerebellum, midbrain, and thalami/occipital lobes with point values).
-- **DOI:** [10.1016/j.wneu.2019.05.217](https://doi.org/10.1016/j.wneu.2019.05.217)
-- **ScienceDirect:** <https://www.sciencedirect.com/science/article/abs/pii/S1878875019314949>
-
-Embedded for clinician training / education only (see [DISCLAIMER.md](DISCLAIMER.md)). This project is not affiliated with or endorsed by the authors or Elsevier / World Neurosurgery.
+No copyrighted pc-ASPECTS figure is embedded. The in-app card lists regions and point values in text only.
 
 ## Patient-language content (NIHSS prompts, consent script, back-translation)
 
